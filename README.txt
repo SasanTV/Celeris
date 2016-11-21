@@ -7,11 +7,11 @@ and edited later by Sasan.
 
 
 Contacts for Sasan Tavakkol:
-        tavakkol@usc.edu or sasantavakkol@yahoo.com
+        tavakkol [at] usc [.] edu or sasantavakkol [at] yahoo [.] com
 Contacts for Patrick Lynett:
-        plynett@usc.edu
+        plynett [at] usc [.] edu
 Contacts for Stephen Thompson:
-        stephen@solarflare.org.uk
+        stephen [at] solarflare [.] org [.] uk
 
 
 Compiling
