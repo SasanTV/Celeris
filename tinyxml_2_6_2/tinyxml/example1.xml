@@ -1,0 +1,46 @@
+<?xml version="1.0" ?>
+<Experiment>
+	
+	<fieldDimensions length = 200 width = 200></fieldDimensions>
+	<gridSize nx = 100 ny = 100></gridSize>
+	
+	<bathymetryFilePath> S:/Dropbox/meetings/9-25/Celeris/Solver/island1.cbf </bathymetryFilePath>
+	<hotStartFilePath> S:/Dropbox/meetings/9-25/Celeris/Solver/Solitary (1).chf </hotStartFilePath>
+
+	<westBoundary type = "Solid">
+		<widthNum> 2 </widthNum>
+		<seaLevel> 2 </seaLevel>
+		<sineWave>
+			<amplitude> 0 </amplitude>
+			<period> 0 </period>
+			<theta> 0 </theta>
+		</sineWave>
+	</westBoundary>
+	<eastBoundary type = "Solid">
+		<widthNum> 2 </widthNum>
+		<seaLevel> 2 </seaLevel>
+		<sineWave>
+			<amplitude> 0.10 </amplitude>
+			<period> 10 </period>
+			<theta> -180 </theta>
+		</sineWave>
+	</eastBoundary>	
+	<southBoundary type = "Solid">
+		<widthNum> 2 </widthNum>
+		<seaLevel> 2 </seaLevel>
+		<sineWave>
+			<amplitude> 0 </amplitude>
+			<period> 0 </period>
+			<theta> 0 </theta>
+		</sineWave>
+	</southBoundary>	
+	<northBoundary type = "Solid">
+		<widthNum> 10 </widthNum>
+		<seaLevel> 1 </seaLevel>
+		<sineWave>
+			<amplitude> 0 </amplitude>
+			<period> 0 </period>
+			<theta> 0 </theta>
+		</sineWave>
+	</northBoundary>	
+</Experiment>
