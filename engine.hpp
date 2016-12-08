@@ -98,6 +98,12 @@ private:
     void createMeshBuffers();
     void createSimBuffers();
 	void addSolitaryWave();
+
+	void westUniformTimeSeries(float & temp_eta,float & temp_hu,float & temp_hv,float total_time);
+	void eastUniformTimeSeries(float & temp_eta,float & temp_hu,float & temp_hv,float total_time);
+	void southUniformTimeSeries(float & temp_eta,float & temp_hu,float & temp_hv,float total_time);
+	void northUniformTimeSeries(float & temp_eta,float & temp_hu,float & temp_hv,float total_time);
+
 	void westIrregularBoundary();
 	void eastIrregularBoundary();
 	void southIrregularBoundary();
@@ -109,6 +115,7 @@ private:
     void createSimTextures(ResetType reset_type);
     void createConstantBuffers();
 	void fillIrregularWavesDataConstantBuffer();
+	void fillUniformTimeSeriesMainMemoryBuffer();
     void fillConstantBuffers();
     void createDepthStencil(int w, int h);
     void loadGraphics();

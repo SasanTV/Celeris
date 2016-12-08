@@ -210,10 +210,10 @@ namespace {
         int reflect_x, reflect_y;
 		int northBoundaryWidth, eastBoundaryWidth, westBoundaryWidth, southBoundaryWidth;
 		float northSeaLevel, eastSeaLevel, westSeaLevel, southSeaLevel;
-		float eastAmplitude, eastPeriod, eastTheta;
-		float westAmplitude, westPeriod, westTheta;
-		float northAmplitude, northPeriod, northTheta;
-		float southAmplitude, southPeriod, southTheta;
+		float eastAmplitude_or_eta, eastPeriod_or_hu, eastTheta_or_hv;
+		float westAmplitude_or_eta, westPeriod_or_hu, westTheta_or_hv;
+		float northAmplitude_or_eta, northPeriod_or_hu, northTheta_or_hv;
+		float southAmplitude_or_eta, southPeriod_or_hu, southTheta_or_hv;
         int solid_wall_flag;
         int inflow_x_min, inflow_x_max;
         float sea_level, inflow_height, inflow_speed;
@@ -1172,21 +1172,59 @@ void ShallowWaterEngine::timestep()
 	cb.westSeaLevel  = initSetting.westBoundary.waterLevel;
 	cb.southSeaLevel = initSetting.southBoundary.waterLevel;
 	
-	cb.eastAmplitude = initSetting.eastBoundary.sineWaveSetting.amplitude;
-	cb.eastPeriod = initSetting.eastBoundary.sineWaveSetting.period;
-	cb.eastTheta = initSetting.eastBoundary.sineWaveSetting.theta;
 
-	cb.westAmplitude = initSetting.westBoundary.sineWaveSetting.amplitude;
-	cb.westPeriod = initSetting.westBoundary.sineWaveSetting.period;
-	cb.westTheta = initSetting.westBoundary.sineWaveSetting.theta;
+	if (initSetting.eastBoundary.type == "UniformTimeSeries"){
+		float temp_eta = 0, temp_hu = 0, temp_hv = 0;
+		eastUniformTimeSeries(temp_eta, temp_hu, temp_hv, total_time);
 
-	cb.northAmplitude = initSetting.northBoundary.sineWaveSetting.amplitude;
-	cb.northPeriod = initSetting.northBoundary.sineWaveSetting.period;
-	cb.northTheta = initSetting.northBoundary.sineWaveSetting.theta;
+		cb.eastAmplitude_or_eta = temp_eta;
+		cb.eastPeriod_or_hu = temp_hu;
+		cb.eastTheta_or_hv = temp_hv;
+	} else {
+		cb.eastAmplitude_or_eta = initSetting.eastBoundary.sineWaveSetting.amplitude;
+		cb.eastPeriod_or_hu = initSetting.eastBoundary.sineWaveSetting.period;
+		cb.eastTheta_or_hv = initSetting.eastBoundary.sineWaveSetting.theta;
+	}
 
-	cb.southAmplitude = initSetting.southBoundary.sineWaveSetting.amplitude;
-	cb.southPeriod = initSetting.southBoundary.sineWaveSetting.period;
-	cb.southTheta = initSetting.southBoundary.sineWaveSetting.theta;
+	if (initSetting.westBoundary.type == "UniformTimeSeries"){
+		float temp_eta = 0, temp_hu = 0, temp_hv = 0;
+		westUniformTimeSeries(temp_eta, temp_hu, temp_hv, total_time);
+
+		cb.westAmplitude_or_eta = temp_eta;
+		cb.westPeriod_or_hu = temp_hu;
+		cb.westTheta_or_hv = temp_hv;
+	} else {
+		cb.westAmplitude_or_eta = initSetting.westBoundary.sineWaveSetting.amplitude;
+		cb.westPeriod_or_hu = initSetting.westBoundary.sineWaveSetting.period;
+		cb.westTheta_or_hv = initSetting.westBoundary.sineWaveSetting.theta;
+	}
+
+	if (initSetting.northBoundary.type == "UniformTimeSeries"){
+		float temp_eta = 0, temp_hu = 0, temp_hv = 0;
+		northUniformTimeSeries(temp_eta, temp_hu, temp_hv, total_time);
+
+		cb.northAmplitude_or_eta = temp_eta;
+		cb.northPeriod_or_hu = temp_hu;
+		cb.northTheta_or_hv = temp_hv;
+	} else {
+		cb.northAmplitude_or_eta = initSetting.northBoundary.sineWaveSetting.amplitude;
+		cb.northPeriod_or_hu = initSetting.northBoundary.sineWaveSetting.period;
+		cb.northTheta_or_hv = initSetting.northBoundary.sineWaveSetting.theta;
+	}
+
+	
+	if (initSetting.southBoundary.type == "UniformTimeSeries"){
+		float temp_eta = 0, temp_hu = 0, temp_hv = 0;
+		southUniformTimeSeries(temp_eta, temp_hu, temp_hv, total_time);
+
+		cb.southAmplitude_or_eta = temp_eta;
+		cb.southPeriod_or_hu = temp_hu;
+		cb.southTheta_or_hv = temp_hv;
+	} else {
+		cb.southAmplitude_or_eta = initSetting.southBoundary.sineWaveSetting.amplitude;
+		cb.southPeriod_or_hu = initSetting.southBoundary.sineWaveSetting.period;
+		cb.southTheta_or_hv = initSetting.southBoundary.sineWaveSetting.theta;
+	}
 
     cb.reflect_x = 2*nx+2;
 	cb.reflect_y = 2*ny+2;
@@ -1698,8 +1736,68 @@ void ShallowWaterEngine::resetTimestep(float realworld_dt, float elapsed_time)
 	
 } 
 
+float lerp_coef(float x0, float x, float x1)
+{
+	return (x - x0)/(x1 - x0);
+}
+
+void timeSeriesHelper(float & temp_eta,float & temp_hu,float & temp_hv,float total_time, std::vector<std::vector<float>> & data_v, int & iter){
+
+	const int TIME = 0, ETA = 1, HU = 2, HV = 3;
+	temp_eta = 0; temp_hu = 0; temp_hv = 0;
+
+	int num_of_time_steps = data_v.size();
+
+	while (iter < num_of_time_steps && data_v[iter][TIME] < total_time){
+		++iter;
+	}
+	if (iter >= num_of_time_steps){
+		return;
+	}
+	float m = lerp_coef(data_v[iter - 1][TIME], total_time, data_v[iter][TIME]);
+	temp_eta = data_v[iter - 1][ETA] + (data_v[iter][ETA] - data_v[iter - 1][ETA]) * m;
+	temp_hu  = data_v[iter - 1][HU]  + (data_v[iter][HU]  - data_v[iter - 1][HU] ) * m;
+	temp_hv  = data_v[iter - 1][HV]  + (data_v[iter][HV]  - data_v[iter - 1][HV] ) * m;
+}
+
+void ShallowWaterEngine::westUniformTimeSeries(float & temp_eta,float & temp_hu,float & temp_hv,float total_time){
+
+	std::vector<std::vector<float>> & data_v = initSetting.westBoundary.uniformTimeSeries.data;
+	int & iter = initSetting.westBoundary.uniformTimeSeries.iter;
+
+	timeSeriesHelper(temp_eta, temp_hu, temp_hv, total_time, data_v, iter);
+}
+
+
+void ShallowWaterEngine::eastUniformTimeSeries(float & temp_eta,float & temp_hu,float & temp_hv,float total_time){
+
+	std::vector<std::vector<float>> & data_v = initSetting.eastBoundary.uniformTimeSeries.data;
+	int & iter = initSetting.eastBoundary.uniformTimeSeries.iter;
+
+	timeSeriesHelper(temp_eta, temp_hu, temp_hv, total_time, data_v, iter);
+}
+
+
+void ShallowWaterEngine::southUniformTimeSeries(float & temp_eta,float & temp_hu,float & temp_hv,float total_time){
+
+	std::vector<std::vector<float>> & data_v = initSetting.southBoundary.uniformTimeSeries.data;
+	int & iter = initSetting.southBoundary.uniformTimeSeries.iter;
+
+	timeSeriesHelper(temp_eta, temp_hu, temp_hv, total_time, data_v, iter);
+}
+
+
+void ShallowWaterEngine::northUniformTimeSeries(float & temp_eta,float & temp_hu,float & temp_hv,float total_time){
+
+	std::vector<std::vector<float>> & data_v = initSetting.northBoundary.uniformTimeSeries.data;
+	int & iter = initSetting.northBoundary.uniformTimeSeries.iter;
+
+	timeSeriesHelper(temp_eta, temp_hu, temp_hv, total_time, data_v, iter);
+}
+
+
  // BoundaryConstBuffer must be bound to b0 before using this function.
- void ShallowWaterEngine::eastIrregularBoundary(){
+void ShallowWaterEngine::eastIrregularBoundary(){
 
 	ID3D11ShaderResourceView * bottom_tex = m_psBottomTextureView.get();
 	context->PSSetShaderResources(1, 1, &bottom_tex);
@@ -1772,7 +1870,7 @@ void ShallowWaterEngine::resetTimestep(float realworld_dt, float elapsed_time)
 } 
 
 // BoundaryConstBuffer must be bound to b0 before using this function.
- void ShallowWaterEngine::southIrregularBoundary(){
+void ShallowWaterEngine::southIrregularBoundary(){
 
 	ID3D11ShaderResourceView * bottom_tex = m_psBottomTextureView.get();
 	context->PSSetShaderResources(1, 1, &bottom_tex);
@@ -3180,6 +3278,7 @@ void ShallowWaterEngine::createConstantBuffers()
     m_psSolitaryWaveConstantBuffer.reset(pBuffer);	
 	
 	fillIrregularWavesDataConstantBuffer ();  
+	fillUniformTimeSeriesMainMemoryBuffer ();
 }
 
 
@@ -3223,7 +3322,7 @@ void decodeLine2 (std::string* tag, std::string* value, std::string line) {
     }
 }
 
-int getNumberOfWavesFromStream (std::ifstream &in){
+int getNumberOfWavesFromFileStream (std::ifstream &in){
 	int result = -1;
 	if (in){
 		std::string line = "-";
@@ -3250,13 +3349,27 @@ int getNumberOfWavesFromStream (std::ifstream &in){
 	return result;
 }
 
+void skipCommentsInFileStream (std::ifstream &in){
+	if (in){
+		std::string line = "-";
+		while (std::getline(in,line))
+		{
+			if (line[0] == '=')
+			{
+				break;
+			} 
+		}
+	}
+}
+
+
 void ShallowWaterEngine::fillIrregularWavesDataConstantBuffer ()
 {
 	IrregularWavesDataConstBuffer irr_cBuffer;
 
 	if (initSetting.westBoundary.type == "IrregularWaves"){
 		std::ifstream in ((initSetting.westIrrWaveFileName).c_str());
-		irr_cBuffer.numberOfWavesWest = getNumberOfWavesFromStream (in);
+		irr_cBuffer.numberOfWavesWest = getNumberOfWavesFromFileStream (in);
 		int count = 0;
 		while (in && count <= irr_cBuffer.numberOfWavesWest) {
 			in >> irr_cBuffer.wavesWest[count].amplitude >> irr_cBuffer.wavesWest[count].period >> irr_cBuffer.wavesWest[count].theta >> irr_cBuffer.wavesWest[count].phase;
@@ -3266,7 +3379,7 @@ void ShallowWaterEngine::fillIrregularWavesDataConstantBuffer ()
 
 	if (initSetting.eastBoundary.type == "IrregularWaves"){
 		std::ifstream in ((initSetting.eastIrrWaveFileName).c_str());
-		irr_cBuffer.numberOfWavesEast = getNumberOfWavesFromStream (in);
+		irr_cBuffer.numberOfWavesEast = getNumberOfWavesFromFileStream (in);
 		int count = 0;
 		while (in && count <= irr_cBuffer.numberOfWavesEast) {
 			in >> irr_cBuffer.wavesEast[count].amplitude >> irr_cBuffer.wavesEast[count].period >> irr_cBuffer.wavesEast[count].theta >> irr_cBuffer.wavesEast[count].phase;
@@ -3276,7 +3389,7 @@ void ShallowWaterEngine::fillIrregularWavesDataConstantBuffer ()
 
 	if (initSetting.southBoundary.type == "IrregularWaves"){
 		std::ifstream in ((initSetting.southIrrWaveFileName).c_str());
-		irr_cBuffer.numberOfWavesSouth = getNumberOfWavesFromStream (in);
+		irr_cBuffer.numberOfWavesSouth = getNumberOfWavesFromFileStream (in);
 		int count = 0;
 		while (in && count <= irr_cBuffer.numberOfWavesSouth) {
 			in >> irr_cBuffer.wavesSouth[count].amplitude >> irr_cBuffer.wavesSouth[count].period >> irr_cBuffer.wavesSouth[count].theta >> irr_cBuffer.wavesSouth[count].phase;
@@ -3286,7 +3399,7 @@ void ShallowWaterEngine::fillIrregularWavesDataConstantBuffer ()
 
 	if (initSetting.northBoundary.type == "IrregularWaves"){
 		std::ifstream in ((initSetting.northIrrWaveFileName).c_str());
-		irr_cBuffer.numberOfWavesNorth = getNumberOfWavesFromStream (in);
+		irr_cBuffer.numberOfWavesNorth = getNumberOfWavesFromFileStream (in);
 		int count = 0;
 		while (in && count <= irr_cBuffer.numberOfWavesNorth) {
 			in >> irr_cBuffer.wavesNorth[count].amplitude >> irr_cBuffer.wavesNorth[count].period >> irr_cBuffer.wavesNorth[count].theta >> irr_cBuffer.wavesNorth[count].phase;
@@ -3295,6 +3408,59 @@ void ShallowWaterEngine::fillIrregularWavesDataConstantBuffer ()
 	}
 
 	context->UpdateSubresource(m_psIrregularWavesDataConstantBuffer.get(), 0, 0, &irr_cBuffer, 0, 0);
+}
+
+void ShallowWaterEngine::fillUniformTimeSeriesMainMemoryBuffer ()
+{
+
+	if (initSetting.westBoundary.type == "UniformTimeSeries"){
+		std::ifstream in ((initSetting.westBoundary.uniformTimeSeries.fileName).c_str());
+		skipCommentsInFileStream(in);
+		float temp_time, temp_eta, temp_hu, temp_hv;
+		while (in) {
+			in >> temp_time >> temp_eta >> temp_hu >> temp_hv;
+			std::vector<float> tempValues;
+			tempValues.push_back(temp_time); tempValues.push_back(temp_eta); tempValues.push_back(temp_hu); tempValues.push_back(temp_hv);
+			initSetting.westBoundary.uniformTimeSeries.data.push_back(tempValues); 
+		}
+	}
+
+	if (initSetting.eastBoundary.type == "UniformTimeSeries"){
+		std::ifstream in ((initSetting.eastBoundary.uniformTimeSeries.fileName).c_str());
+		skipCommentsInFileStream(in);
+		float temp_time, temp_eta, temp_hu, temp_hv;
+		while (in) {
+			in >> temp_time >> temp_eta >> temp_hu >> temp_hv;
+			std::vector<float> tempValues;
+			tempValues.push_back(temp_time); tempValues.push_back(temp_eta); tempValues.push_back(temp_hu); tempValues.push_back(temp_hv);
+			initSetting.eastBoundary.uniformTimeSeries.data.push_back(tempValues); 
+		}
+	}
+
+	
+	if (initSetting.northBoundary.type == "UniformTimeSeries"){
+		std::ifstream in ((initSetting.northBoundary.uniformTimeSeries.fileName).c_str());
+		skipCommentsInFileStream(in);
+		float temp_time, temp_eta, temp_hu, temp_hv;
+		while (in) {
+			in >> temp_time >> temp_eta >> temp_hu >> temp_hv;
+			std::vector<float> tempValues;
+			tempValues.push_back(temp_time); tempValues.push_back(temp_eta); tempValues.push_back(temp_hu); tempValues.push_back(temp_hv);
+			initSetting.northBoundary.uniformTimeSeries.data.push_back(tempValues); 
+		}
+	}
+	
+	if (initSetting.southBoundary.type == "UniformTimeSeries"){
+		std::ifstream in ((initSetting.southBoundary.uniformTimeSeries.fileName).c_str());
+		skipCommentsInFileStream(in);
+		float temp_time, temp_eta, temp_hu, temp_hv;
+		while (in) {
+			in >> temp_time >> temp_eta >> temp_hu >> temp_hv;
+			std::vector<float> tempValues;
+			tempValues.push_back(temp_time); tempValues.push_back(temp_eta); tempValues.push_back(temp_hu); tempValues.push_back(temp_hv);
+			initSetting.southBoundary.uniformTimeSeries.data.push_back(tempValues); 
+		}
+	}
 }
 
 inline bool isTerraingTextureColormap(int t){
