@@ -444,6 +444,7 @@ void GuiManager::createGui()
 				list_model->add("Sponge");
 				list_model->add("SineWave");
 				list_model->add("IrregularWaves");
+				list_model->add("UniformTimeSeries");
 				list_models.push_back(list_model);
 		    
 				dropdown.reset(new gcn::DropDown(list_model.get()));
@@ -785,6 +786,9 @@ void GuiManager::boundary_set_button_do()
 			break;
 		case B_IRREGULARWAVE:
 			type = "IrregularWaves";
+			break;
+		case B_UNIFORMTIMESERIES:
+			type = "UniformTimeSeries";
 			break;
 		}
 		

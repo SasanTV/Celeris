@@ -91,7 +91,8 @@ enum BoundaryType{
     B_SOLID,
     B_SPONGE,
     B_SINEWAVE,
-	B_IRREGULARWAVE
+	B_IRREGULARWAVE,
+	B_UNIFORMTIMESERIES
 };
 
 enum BoundarySide{
@@ -115,6 +116,24 @@ struct SineWaveSetting {
 	float amplitude;
 	float period;
 	float theta; //angle in radians to x direction.
+	SineWaveSetting (): amplitude(0), period(0), theta(0){}
+};
+
+struct FlowParameters {
+	float w;
+	float hu;
+	float hv; 
+};
+
+
+struct UniformTimeSeries{
+	std::string fileName;
+	std::vector<std::vector<float>> data;
+	int iter;
+	UniformTimeSeries () : iter(1), fileName("NA"){}
+	void reset_iter (){
+		iter = 1;
+	}
 };
 
 
@@ -123,7 +142,10 @@ struct BoundarySetting {
 	int width; //number of cells in boundary.
 	float waterLevel; // this can be sea level, or a control depth at river output. It is measured from datum.
 	SineWaveSetting sineWaveSetting;
+	UniformTimeSeries uniformTimeSeries;
+//	FlowParameters ForcedInput;
 	bool hasChanged;
+	BoundarySetting (): type("Solid"), width(2), waterLevel(0), hasChanged(false)  {}
 };
 
 
@@ -162,6 +184,7 @@ struct Soliton{
 struct CameraSetting{
 	float x, y, z;
 	float pitch, yaw;
+	CameraSetting() : x(0), y(0), z(0), pitch(0), yaw(0){}
 };
 
 struct GraphicsSetting{
@@ -172,7 +195,13 @@ struct GraphicsSetting{
 
 	float fresnelCoef,refractive_index, att_1, att_2;
 	CameraSetting camera;
-
+	GraphicsSetting (){
+		gridOn = true;
+		gridScale = 1.0f;
+		verticalScale = 1.0f;
+		ambientLight = 1.0f;
+		fresnelCoef = 0.5f; refractive_index = 0.5f; att_1 = 0.5f; att_2 = 0.5f;
+	}
 };
 
 struct InitSetting {
@@ -185,10 +214,11 @@ struct InitSetting {
 	std::string initCMLName;
 	std::string initWFileName;
 	std::string bathymetryFileName;
-	std::string westIrrWaveFileName, eastIrrWaveFileName;
+	std::string westIrrWaveFileName,  eastIrrWaveFileName;
 	std::string southIrrWaveFileName, northIrrWaveFileName;
+
+
 	std::string logPath;
-	
 	
 	//Model
 	bool isBoussinesq;
@@ -211,7 +241,6 @@ struct InitSetting {
 	BoundarySetting southBoundary;
 	BoundarySetting northBoundary;
 	
-
 	//solitary waves
 	static const int MAX_NUM_SOLITARY = 100;
 	Soliton solitons[MAX_NUM_SOLITARY];
@@ -230,17 +259,65 @@ struct InitSetting {
 	std::string gaugesFilename;
 	Point logGauges[MAX_NUM_GAUGE];
 	int countOfGauges;
-
 	float max_positive_bathy, min_negative_bathy, min_bathy;
 	GraphicsSetting graphics;
 
-	InitSetting(): isBoussinesq (true), epsilon(5e-8f), friction(0), stillWaterElevation(0), countOfSolitons(0){}
+	InitSetting(){
+		project_name = "NA";
+
+		//Paths
+		exePath = "NA";
+		initCMLName = "NA";
+		initWFileName = "NA";
+		bathymetryFileName = "NA";
+		westIrrWaveFileName = "NA";  eastIrrWaveFileName = "NA";
+		southIrrWaveFileName = "NA"; northIrrWaveFileName = "NA";
+
+
+		logPath = "NA";
+		
+		//Model
+		isBoussinesq  = true;
+		epsilon = 5e-8f;
+		theta = 2;
+		friction = 0;
+		isManning = 0; // 1 is manning, anything else is quadratic.
+		correctionStepsNum = 0;
+		timestep = 0.0001;
+
+		//Field
+		nx = 100;
+		ny = 100;
+		width = 100; //x direction
+		length = 100; // y direction
+		stillWaterElevation = 0;
+		//Boundaries
+		westBoundary = BoundarySetting ();
+		eastBoundary = BoundarySetting ();
+		southBoundary = BoundarySetting ();
+		northBoundary = BoundarySetting ();
+		
+		//solitary waves
+		countOfSolitons = 0;
+		is_there_new_solitary_wave = false;
+		
+		//Log
+		doLog = false;
+		logStep = 100;
+		logType = "NA";
+		countOfRanges = 0;
+
+		gaugesFilename = "NA";
+		int countOfGauges = 0;
+		max_positive_bathy = 0; min_negative_bathy = 0; min_bathy = 0;
+	}
+
+	~ InitSetting() {}
 };
 
 
-
+extern InitSetting & initSetting;
 // global array of settings, 'null terminated'
-extern InitSetting initSetting;
 extern Setting g_settings[];
 // flag to communicate when the settings have changed
 extern ResetType g_reset_type;

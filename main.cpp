@@ -67,8 +67,12 @@ bool g_quit = false;
 bool g_resize = false;
 
 
-InitSetting initSetting = InitSetting();
-
+// There is a little trick that you see below! The story behind it is interesting and I, Sasan, am going to share it here.
+// InitSetting started as a small structure to encapsulate a few file paths. Then it grow and grow bigger.
+// At some point, it was pretty large to keep it on the stack, so I decided to put it on the heap (new InitSetting()).
+// But I did not wanted to change all initSetting.foo to initSetting->foo. So, that is the reason behind the below trick :)
+InitSetting * p_initSetting = new InitSetting();
+InitSetting& initSetting = *p_initSetting;
 
 namespace {
     const float PI = std::atan(1.0f) * 4.0f;
@@ -284,6 +288,13 @@ private:
     bool left_mouse_down, right_mouse_down;
 };
 
+void reset_uniforrm_time_series_iters(){
+	initSetting.westBoundary.uniformTimeSeries.reset_iter();
+	initSetting.eastBoundary.uniformTimeSeries.reset_iter();
+	initSetting.southBoundary.uniformTimeSeries.reset_iter();
+	initSetting.northBoundary.uniformTimeSeries.reset_iter();
+}
+
 
 int real_main()
 {
@@ -342,12 +353,14 @@ int real_main()
             g_resize = false;
         }
 		
-			    
         // see if updates need to be done
         switch (g_reset_type) {
-        case R_MESH:
+        
+		// R_MESH is currently used to reset simulation 
+		case R_MESH:
             engine->remesh(g_reset_type);
 			reference_time = timer->getMsec();
+			reset_uniforrm_time_series_iters();
             break;
         case R_TERRAIN:
             engine->newTerrainSettings();
@@ -638,6 +651,15 @@ bool readInputCML()
 					} else {
 						initSetting.westIrrWaveFileName = tempString;
 					}
+				} else if (initSetting.westBoundary.type == "UniformTimeSeries") {
+					std::string tempString = elem->FirstChildElement("filePath")->FirstChild()->ToText()->Value();
+					const char *pp;
+					pp =  tempString.c_str();
+					if (PathIsRelative(pp)){
+						initSetting.westBoundary.uniformTimeSeries.fileName = extractPath(initSetting.initCMLName) + "/" + tempString;
+					} else {
+						initSetting.westBoundary.uniformTimeSeries.fileName = tempString;
+					}
 				}
 
 				initSetting.westBoundary.hasChanged = true;
@@ -672,6 +694,15 @@ bool readInputCML()
 					} else {
 						initSetting.eastIrrWaveFileName = tempString;
 					}
+				} else if (initSetting.eastBoundary.type == "UniformTimeSeries") {
+					std::string tempString = elem->FirstChildElement("filePath")->FirstChild()->ToText()->Value();
+					const char *pp;
+					pp =  tempString.c_str();
+					if (PathIsRelative(pp)){
+						initSetting.eastBoundary.uniformTimeSeries.fileName = extractPath(initSetting.initCMLName) + "/" + tempString;
+					} else {
+						initSetting.eastBoundary.uniformTimeSeries.fileName = tempString;
+					}
 				}
 
 				initSetting.eastBoundary.hasChanged = true;
@@ -705,7 +736,17 @@ bool readInputCML()
 					} else {
 						initSetting.northIrrWaveFileName = tempString;
 					}
+				} else if (initSetting.northBoundary.type == "UniformTimeSeries") {
+					std::string tempString = elem->FirstChildElement("filePath")->FirstChild()->ToText()->Value();
+					const char *pp;
+					pp =  tempString.c_str();
+					if (PathIsRelative(pp)){
+						initSetting.northBoundary.uniformTimeSeries.fileName = extractPath(initSetting.initCMLName) + "/" + tempString;
+					} else {
+						initSetting.northBoundary.uniformTimeSeries.fileName = tempString;
+					}
 				}
+
 				initSetting.northBoundary.hasChanged = true;
 			}
 			else if(elemName == "southBoundary")
@@ -736,7 +777,17 @@ bool readInputCML()
 					} else {
 						initSetting.southIrrWaveFileName = tempString;
 					}
+				} else if (initSetting.southBoundary.type == "UniformTimeSeries") {
+					std::string tempString = elem->FirstChildElement("filePath")->FirstChild()->ToText()->Value();
+					const char *pp;
+					pp =  tempString.c_str();
+					if (PathIsRelative(pp)){
+						initSetting.southBoundary.uniformTimeSeries.fileName = extractPath(initSetting.initCMLName) + "/" + tempString;
+					} else {
+						initSetting.southBoundary.uniformTimeSeries.fileName = tempString;
+					}
 				}
+
 				initSetting.southBoundary.hasChanged = true;
 			}
 			else if(elemName == "logData")
