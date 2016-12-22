@@ -378,6 +378,7 @@ void GuiManager::createGui()
                 list_model->add("u velocity");
                 list_model->add("v velocity");
 				list_model->add("velocity magnitude");
+				list_model->add("vorticity");
                 list_models.push_back(list_model);
             
                 dropdown.reset(new gcn::DropDown(list_model.get()));

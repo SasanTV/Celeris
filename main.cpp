@@ -318,7 +318,7 @@ int real_main()
     std::auto_ptr<MyListener> listener;
     boost::shared_ptr<Coercri::DX11Window> window = 
         boost::static_pointer_cast<Coercri::DX11Window>(
-            gfx_driver->createWindow(g_width + GUI_WIDTH, g_height, true, false, initSetting.project_name + " - Celeris Advent (v1.2.0)"));
+            gfx_driver->createWindow(g_width + GUI_WIDTH, g_height, true, false, initSetting.project_name + " - Celeris Advent (v1.2.2)"));
     GuiManager gui_manager(window, timer, GUI_WIDTH);
 	
     // Create the ShallowWaterEngine
@@ -491,9 +491,14 @@ bool browseInputCML(){
 }
 
 
+void readGraphicsInput_helper(TiXmlElement* root);
 bool readGraphicsInput();
 bool readInputCML()
 {
+	if(readGraphicsInput())
+	{
+		return 1;
+	}
 
 	TiXmlDocument doc(initSetting.initCMLName);
 	bool loadOkay = doc.LoadFile();
@@ -502,7 +507,6 @@ bool readInputCML()
 		TiXmlElement* root = doc.FirstChildElement();
 		if(root == NULL)
 		{
-			
 			doc.Clear();
 			MessageBox(0, "Invalid CML input file!", "Error!", MB_OK);
 			return browseInputCML();
@@ -852,11 +856,21 @@ bool readInputCML()
 					initSetting.countOfGauges = gaugeCounter;
 
 				}
-
+			}
+			else if(elemName == "graphics")
+			{
+				readGraphicsInput_helper(elem);
 			}
 		}
 		
-		return readGraphicsInput(); // readgraphics setting is placed here, because it needs field dimensions to place camera.
+		if(initSetting.graphics.autoCam){
+			initSetting.graphics.camera.x = - initSetting.width / 2;
+			initSetting.graphics.camera.y = 0;
+			initSetting.graphics.camera.z = sqrt( initSetting.width*initSetting.width + initSetting.length*initSetting.length); //sqrt(initSetting.width * initSetting.length) * 1.2;
+			initSetting.graphics.camera.pitch = -1;
+			initSetting.graphics.camera.yaw = atan(initSetting.width/initSetting.length);
+		}
+		return 0;
 
 	}
 	else
@@ -868,12 +882,84 @@ bool readInputCML()
 
 }
 
+
+
+void readGraphicsInput_helper(TiXmlElement* root){
+
+	for(TiXmlElement* elem = root->FirstChildElement(); elem != NULL; elem = elem->NextSiblingElement())
+	{
+		std::string elemName = elem->Value();
+		if(elemName == "grid")
+		{
+			float gridScale;
+			bool gridOn;
+			elem->QueryBoolAttribute("show", &gridOn);
+			elem->QueryFloatAttribute("scale", &gridScale);
+
+			initSetting.graphics.gridOn = gridOn;
+			initSetting.graphics.gridScale = gridScale;
+		}
+		else if(elemName == "colormap")
+		{
+			float colormapMinMax;
+			bool autoColormap;
+			elem->QueryBoolAttribute("auto", &autoColormap);
+			elem->QueryFloatAttribute("minMaxValue", &colormapMinMax);
+
+			initSetting.graphics.autoColormap = autoColormap;
+			initSetting.graphics.colormapMinMax = colormapMinMax;
+		}
+		else if(elemName == "lighting")
+		{
+			float ambientLight;
+			elem->QueryFloatAttribute("ambient", &ambientLight);
+			initSetting.graphics.ambientLight = ambientLight;				
+		}
+		else if(elemName == "vertical")
+		{
+			float scale;
+			elem->QueryFloatAttribute("scale", &scale);
+			initSetting.graphics.verticalScale = scale;				
+		}
+		else if(elemName == "fresnel")
+		{
+			float fresnelCoef, refractive_index, att_1, att_2;
+			elem->QueryFloatAttribute("coef", &fresnelCoef);
+			elem->QueryFloatAttribute("refractive_index", &refractive_index);
+			elem->QueryFloatAttribute("attenuation_1", &att_1);
+			elem->QueryFloatAttribute("attenuation_2", &att_2);
+			initSetting.graphics.fresnelCoef = fresnelCoef;
+			initSetting.graphics.refractive_index = refractive_index;
+			initSetting.graphics.att_1 = att_1;
+			initSetting.graphics.att_2 = att_2;
+		}
+		else if(elemName == "camera")
+		{
+			bool autoCam;
+			elem->QueryBoolAttribute("auto", &autoCam);
+			initSetting.graphics.autoCam = autoCam;
+			if(!autoCam)
+			{ 
+				float x, y, z, pitch, yaw;
+				elem->QueryFloatAttribute("x", &x);
+				elem->QueryFloatAttribute("y", &y);
+				elem->QueryFloatAttribute("z", &z);
+				elem->QueryFloatAttribute("pitch", &pitch);
+				elem->QueryFloatAttribute("yaw", &yaw);
+
+				initSetting.graphics.camera.x = x;
+				initSetting.graphics.camera.y = y;
+				initSetting.graphics.camera.z = z;
+				initSetting.graphics.camera.pitch = pitch;
+				initSetting.graphics.camera.yaw = yaw;
+			}
+		}
+	}
+
+}
 //********
-
-
 bool readGraphicsInput()
 {
-
 	TiXmlDocument doc((initSetting.exePath + "/graphics/graphics.init").c_str());
 	bool loadOkay = doc.LoadFile();
 	if (loadOkay)
@@ -883,76 +969,18 @@ bool readGraphicsInput()
 		{	
 			doc.Clear();
 			MessageBox(0, "Invalid graphics.init file!", "Error!", MB_OK);
-			return browseInputCML();
+			return 1;
 		}
-		for(TiXmlElement* elem = root->FirstChildElement(); elem != NULL; elem = elem->NextSiblingElement())
-		{
-			std::string elemName = elem->Value();
-			if(elemName == "grid")
-			{
-				float gridScale;
-				bool gridOn;
-				elem->QueryBoolAttribute("show", &gridOn);
-				elem->QueryFloatAttribute("scale", &gridScale);
+		readGraphicsInput_helper(root);
 
-				initSetting.graphics.gridOn = gridOn;
-				initSetting.graphics.gridScale = gridScale;
-			}
-			else if(elemName == "lighting")
-			{
-				float ambientLight;
-				elem->QueryFloatAttribute("ambient", &ambientLight);
-				initSetting.graphics.ambientLight = ambientLight;				
-			}
-			else if(elemName == "vertical")
-			{
-				float scale;
-				elem->QueryFloatAttribute("scale", &scale);
-				initSetting.graphics.verticalScale = scale;				
-			}
-			else if(elemName == "fresnel")
-			{
-				float fresnelCoef, refractive_index, att_1, att_2;
-				elem->QueryFloatAttribute("coef", &fresnelCoef);
-				elem->QueryFloatAttribute("refractive_index", &refractive_index);
-				elem->QueryFloatAttribute("attenuation_1", &att_1);
-				elem->QueryFloatAttribute("attenuation_2", &att_2);
-				initSetting.graphics.fresnelCoef = fresnelCoef;
-				initSetting.graphics.refractive_index = refractive_index;
-				initSetting.graphics.att_1 = att_1;
-				initSetting.graphics.att_2 = att_2;
-			}
-			else if(elemName == "camera")
-			{
-				bool autoCam;
-				elem->QueryBoolAttribute("auto", &autoCam);
-				if(autoCam){
-					initSetting.graphics.camera.x = - initSetting.width / 2;
-					initSetting.graphics.camera.y = 0;
-					initSetting.graphics.camera.z = sqrt( initSetting.width*initSetting.width + initSetting.length*initSetting.length); //sqrt(initSetting.width * initSetting.length) * 1.2;
-					initSetting.graphics.camera.pitch = -1;
-					initSetting.graphics.camera.yaw = atan(initSetting.width/initSetting.length);
-				} else { 
-					float x, y, z, pitch, yaw;
-					elem->QueryFloatAttribute("x", &x);
-					elem->QueryFloatAttribute("y", &y);
-					elem->QueryFloatAttribute("z", &z);
-					elem->QueryFloatAttribute("pitch", &pitch);
-					elem->QueryFloatAttribute("yaw", &yaw);
-
-					initSetting.graphics.camera.x = x;
-					initSetting.graphics.camera.y = y;
-					initSetting.graphics.camera.z = z;
-					initSetting.graphics.camera.pitch = pitch;
-					initSetting.graphics.camera.yaw = yaw;
-				}
-			}
-		}
-	return 0;
+		// Set autocolormap to true, so colormap values can't be set from graphics.init.
+		initSetting.graphics.autoColormap = true;
+		return 0;
 	}else{
 		MessageBox(0, doc.ErrorDesc(), "Error!", MB_OK);
 	}
 }
+
 
 //********
 
@@ -968,9 +996,8 @@ int initializeSetting()
 	if(line == ""){
 		return browseInputCML();
 	}
-	
-	
-	
+
+
 	return readInputCML();
 }
 

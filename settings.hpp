@@ -188,17 +188,26 @@ struct CameraSetting{
 };
 
 struct GraphicsSetting{
+	bool autoCam;
+
 	bool gridOn;
 	float gridScale;
 	float verticalScale;
+
+	bool autoColormap;
+	float colormapMinMax;
+
 	float ambientLight;
 
 	float fresnelCoef,refractive_index, att_1, att_2;
 	CameraSetting camera;
 	GraphicsSetting (){
+		autoCam = true;
 		gridOn = true;
 		gridScale = 1.0f;
 		verticalScale = 1.0f;
+		autoColormap = true;
+		colormapMinMax = 1.0f;
 		ambientLight = 1.0f;
 		fresnelCoef = 0.5f; refractive_index = 0.5f; att_1 = 0.5f; att_2 = 0.5f;
 	}

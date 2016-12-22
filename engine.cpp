@@ -160,6 +160,7 @@ namespace {
         float attenuation_1, attenuation_2;
         
         int nx_plus_1, ny_plus_1;
+		//float dx, dy;
 
         float deep_r, deep_g, deep_b;
 
@@ -1639,13 +1640,14 @@ void ShallowWaterEngine::resetTimestep(float realworld_dt, float elapsed_time)
 
 	static bool colormap_initialized = false;
 	if (!colormap_initialized ){
-		SetSettingMax("Colormap Max",  max_depth);
-		SetSettingMax("Colormap Min",  max_depth);
-		SetSettingMin("Colormap Max", -max_depth);
-		SetSettingMin("Colormap Min", -max_depth);
+		float colormapMinMax = initSetting.graphics.autoColormap ? max_depth : initSetting.graphics.colormapMinMax;
+		SetSettingMax("Colormap Max",  colormapMinMax);
+		SetSettingMax("Colormap Min",  colormapMinMax);
+		SetSettingMin("Colormap Max", -colormapMinMax);
+		SetSettingMin("Colormap Min", -colormapMinMax);
 		
-		SetSetting("Colormap Max", max_depth/2.0f);
-		SetSetting("Colormap Min", -max_depth/2.0f);
+		SetSetting("Colormap Max", colormapMinMax/2.0f);
+		SetSetting("Colormap Min", -colormapMinMax/2.0f);
 
 		SetSettingMax("Colormap Max ",  1.5 * initSetting.max_positive_bathy);
 		SetSettingMin("Colormap Max ", 0);
@@ -3557,6 +3559,10 @@ void ShallowWaterEngine::fillConstantBuffers()
 
     cb.nx_plus_1 = nx + 1;
     cb.ny_plus_1 = ny + 1;
+/*
+	cb.dx =  W / (nx - 1);
+    cb.dy =  L / (ny - 1);
+*/
 	cb.zScale = GetSetting("Vertical_Scale");
 	cb.seaLevel = initSetting.stillWaterElevation;
 		
