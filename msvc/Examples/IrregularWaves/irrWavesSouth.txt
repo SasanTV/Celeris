@@ -1,0 +1,17 @@
+# This is a sample file for the wave data from a spectrum. 
+# The maximum number of waves is 100. Anything beyond that will be ignored.
+# Lines starting with '#' are comments and ignored. Comments are only allowed in the header.
+# Anyting above the line starting with '=' is header.
+# the data are aligned as below:
+# amplitude period theta phase
+
+# All four variables including phase must be given for each wave.
+
+[NumberOfWaves] 2
+=================================
+0.04 2 0.785 0.0
+0.04 2 2.355 0.0
+
+
+
+

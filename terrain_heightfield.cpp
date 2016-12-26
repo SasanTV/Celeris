@@ -196,7 +196,6 @@ void readBathymetry ()
 		}
 	}
 
-	 
 	float max_celerity = sqrt((initSetting.stillWaterElevation - initSetting.min_bathy)*GetSetting("gravity"));
 	const float nx = GetIntSetting("mesh_size_x");
 	const float ny = GetIntSetting("mesh_size_y");

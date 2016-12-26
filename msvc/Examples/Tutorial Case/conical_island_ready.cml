@@ -1,0 +1,52 @@
+<?xml version="1.0" ?>
+<Experiment>
+
+	<name>Conical Island</name>
+    <!-- Settings for Model -->
+	<model type = "BSNQ">
+		<parameters epsilon = 5e-12 Theta = 2 correctionStepsNum = 0 timestep = 0.005></parameters>
+		<friction type = "Manning" coef = 0.0></friction>
+	</model>
+	
+	<!-- Settings for Solution field -->
+	<fieldDimensions width = 30 length = 30 stillWaterElevation = 0></fieldDimensions>
+	<gridSize nx = 301 ny = 301></gridSize>
+	
+	<bathymetryFilePath> conical_island_400x400.cbf </bathymetryFilePath>
+	
+	<!-- Settings for Initial Condition -->
+	<hotStartFilePath> N/A </hotStartFilePath>
+	<solitaryWave H = 0.058 theta = 0 xc = 5 yc = 15></solitaryWave>
+	
+	<!-- Settings for Boundaries-->
+	<westBoundary  type = "Sponge" seaLevel = 0 widthNum = 20></westBoundary>
+	<eastBoundary  type = "Sponge" seaLevel = 0 widthNum = 20></eastBoundary>	
+	<southBoundary type = "Solid"  seaLevel = 0 widthNum = 2></southBoundary>	
+	<northBoundary type = "Solid"  seaLevel = 0 widthNum = 2></northBoundary>	
+	
+	<!-- Settings for Logging Data-->
+	
+	
+	
+	<logData doLog = true logStep = 20>
+		<logPath>log/</logPath>
+
+		<range filename = "island">
+			<bottomLeft x = 110 y = 110></bottomLeft>
+			<topRight x = 195 y = 195></topRight>
+		</range>
+
+		<range filename = "centerline">
+			<bottomLeft x = 0 y = 152></bottomLeft>
+			<topRight x = 304 y = 152></topRight>
+		</range>
+		
+		<gauges filename = "gauges">
+			116,152,
+			126,152,
+			177,152,
+			178,152,
+			152,126
+		</gauges>
+	</logData>
+</Experiment>

@@ -113,6 +113,7 @@ private:
     void fillTerrainTexture();
     void fillTerrainTextureLite();
     void createSimTextures(ResetType reset_type);
+	void createTridiagonalCoefTextures();
     void createConstantBuffers();
 	void fillIrregularWavesDataConstantBuffer();
 	void fillUniformTimeSeriesMainMemoryBuffer();
