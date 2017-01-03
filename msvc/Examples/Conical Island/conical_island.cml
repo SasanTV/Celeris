@@ -1,0 +1,73 @@
+<?xml version="1.0" ?>
+<Experiment>
+
+	<name>Conical Island</name>
+    <!-- Settings for Model -->
+	<model type = "BSNQ">
+		<parameters epsilon = 5e-8 Theta = 2 correctionStepsNum = 2 timestep = 0.005></parameters>
+		<friction type = "Manning" coef = 0.0></friction>
+	</model>
+	
+	<!-- Settings for Solution field -->
+	<fieldDimensions width = 30 length = 30 stillWaterElevation = 0></fieldDimensions>
+	<gridSize nx = 201 ny = 201></gridSize>
+	<bathymetryFilePath> conical_island_400x400.cbf </bathymetryFilePath>
+	
+	
+	
+	<!-- Settings for Initial Condition -->
+	<!--solitaryWave H = 0.058 theta = 0 xc = 5 yc = 15></solitaryWave-->
+	
+	<!-- Settings for Boundaries-->
+	<westBoundary  type = "Sponge" seaLevel = 0 widthNum = 20></westBoundary>
+	<eastBoundary  type = "Sponge" seaLevel = 0 widthNum = 20></eastBoundary>	
+	<southBoundary type = "Solid"  seaLevel = 0 widthNum = 2></southBoundary>	
+	<northBoundary type = "Solid"  seaLevel = 0 widthNum = 2></northBoundary>	
+	
+	<!-- Settings for Logging Data-->
+	<logData doLog = false logStep = 20>
+		<logPath>log</logPath>
+
+		<range filename = "island">
+			<bottomLeft x = 228 y = 228></bottomLeft>
+			<topRight x = 374 y = 374></topRight>
+		</range>
+		
+		<gauges filename = "gauges">
+			229,302,
+			249,302,
+			353,302,
+			354,302,
+			300,249,
+			301,249,
+			302,249
+		</gauges>
+	</logData>
+	
+	<!-- Settings for graphics are optional-->
+	<graphics>
+		<vertical scale = 1></vertical>
+		<!-- Photorealistic = 0, PARULA = 1, JET = 2 -->
+		<surfaceShading type = 2>
+			
+			<!-- Eta = 0, U = 1, V = 2, |U+V| = 3, Vorticity = 4 -->
+			<shadingVariable value =  4></shadingVariable>
+
+			<!-- -minMaxValue < value < +minMaxValue -->
+			<colormap auto = false min = -1 max = 3></colormap>
+		</surfaceShading>
+		
+		<!-- Textures = 0 to 5, COLORMAP = 6, CONTOURS = 7 -->
+		<terrainTexture type = 6>
+			<colormap auto = false min = -2 max = 4></colormap>
+		</terrainTexture>
+		
+		<skybox type = 3></skybox>
+
+		<grid show = true scale = 1></grid>
+
+		<lighting ambient = 0.25 sunAltitude = 45 sunAzimuth = 30></lighting>
+		<fresnel coef = 0.5 refractive_index = 3 attenuation_1 = 0 attenuation_2 = 0.1></fresnel>
+		<camera auto = true FOV = 50 x = -100 y = -100 z = 40 pitch = -1 yaw = 0.785></camera>
+	</graphics>
+</Experiment>

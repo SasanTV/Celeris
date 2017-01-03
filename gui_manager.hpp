@@ -98,7 +98,7 @@ private:
     int gui_width;
 
     boost::shared_ptr<gcn::Container> show_gui_container;
-    boost::shared_ptr<gcn::Button> show_gui_button, hide_gui_button, reset_simulation_button, pause_simulation_button;
+    boost::shared_ptr<gcn::Button> show_gui_button, hide_gui_button, reset_simulation_button, reset_bathymetry_button, save_bathymetry_button, pause_simulation_button;
     boost::shared_ptr<gcn::Button> preset_button_valley, preset_button_valley_hires, preset_button_sea, preset_button_flat;
 	boost::shared_ptr<gcn::Button> boundary_set_button, init_condition_set_button, mesh_size_set_button;
     bool gui_shown;

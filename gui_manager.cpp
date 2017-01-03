@@ -35,6 +35,8 @@
  */
 
 #include "settings.hpp"
+#include "engine.hpp"
+
 #include "gui_manager.hpp"
 
 #include "coercri/gfx/bitmap_font.hpp"
@@ -108,44 +110,17 @@ namespace {
 		SetSettingD("nominal_cfl", 0.2);
         SetSettingD("timesteps_per_frame", 10);
         //SetSettingD("time_acceleration", 1);
-        //SetSettingD("valley_shape", 2);
-        //SetSettingD("channel_depth_top", 2);
-        //SetSettingD("channel_depth_bottom", 2);
-        //SetSettingD("channel_width_top", 10);
-        //SetSettingD("channel_width_bottom", 10);
-        //SetSettingD("dam_on", 1);
-        //SetSettingD("dam_height", 10);
-        //SetSettingD("dam_position", 150);
-        //SetSettingD("dam_middle_width", 4);
-        //SetSettingD("dam_middle_height", -5);
-        //SetSettingD("dam_thickness", 8);
-        //SetSettingD("meander_wavelength", 100);
-        //SetSettingD("meander_amplitude", 8);
-        //SetSettingD("meander_fractal", 0.3);
-        //SetSettingD("use_sea_level", 0);
-        //SetSettingD("sea_level", 10);
-        /*
-		SetSettingD("sa1", 0.3);
-        SetSettingD("sk1", 0.224);
-        SetSettingD("sk1_dir", 5.18);
-        SetSettingD("so1", 1);
-        SetSettingD("sa2", 0.25);
-        SetSettingD("sk2", 0.201);
-        SetSettingD("sk2_dir", 4.83);
-        SetSettingD("so2", 1.07);
-        SetSettingD("sa3", 0.1);
-        SetSettingD("sk3", 0.3);
-        SetSettingD("sk3_dir", 4.9);
-        SetSettingD("so3", 4);
-        SetSettingD("sa4", 0);
-        SetSettingD("sk4", 0);
-        SetSettingD("sk4_dir", 0);
-        SetSettingD("s04", 0);
-		*/
-        SetSettingD("fov", 45);
-        SetSettingD("sun_alt", 25);
-        SetSettingD("sun_az", 300);
-		SetSettingD("ambient", initSetting.graphics.ambientLight); //Default was 0.75
+			
+		SetSettingD("Surface Shading",  initSetting.graphics.surfaceShading.type);
+		SetSettingD("Shading Variable", initSetting.graphics.surfaceShading.shadingVariable);
+		
+		SetSettingD("Terrain Texture", initSetting.graphics.terrainTexture.type);
+		SetSettingD("Skybox", initSetting.graphics.skyboxType);
+		
+		SetSettingD("fov", initSetting.graphics.camera.fov);
+		SetSettingD("sun_alt", initSetting.graphics.lighting.sun_altitude);
+		SetSettingD("sun_az", initSetting.graphics.lighting.sun_azimuth);
+		SetSettingD("ambient", initSetting.graphics.lighting.ambientLight); //Default was 0.75
 		SetSettingD("Vertical_Scale", initSetting.graphics.verticalScale);
 		SetSettingD("fresnel_coeff", initSetting.graphics.fresnelCoef); // Default was 0.983
         //SetSettingD("fresnel_exponent", 5);
@@ -158,22 +133,10 @@ namespace {
         SetSettingD("deep_g", 0.1);
         SetSettingD("deep_b", 0.2);
 
-
 		SetSettingD("mesh_size_x", initSetting.nx);
 		SetSettingD("mesh_size_y", initSetting.ny);
-        //SetSettingD("solid_walls", 1);
-        //SetSettingD("inflow_width", 0);
-        //SetSettingD("inflow_height", 0);
 		SetSettingD("valley_length", initSetting.length);
 		SetSettingD("valley_width", initSetting.width);
-        //SetSettingD("valley_wall_height", 0);
-        //SetSettingD("gradient_top", 0);
-        //SetSettingD("gradient_bottom", 0);
-        //SetSettingD("channel_depth_top", 0);
-        //SetSettingD("channel_depth_bottom", 0);
-        //SetSettingD("channel_width_top", 0);
-        //SetSettingD("channel_width_bottom", 0);
-        //SetSettingD("dam_on", 0);
         //SetSettingD("clip_camera", 0);
 		SetSettingD("sea_level", initSetting.stillWaterElevation);
 		//SetSettingD("use_sea_level", 1);
@@ -243,8 +206,13 @@ void GuiManager::createGui()
 
     reset_simulation_button.reset(new gcn::Button("Reset Simulation"));
     reset_simulation_button->addActionListener(this);
-    
-    
+
+	reset_bathymetry_button.reset(new gcn::Button("Reset Bathymetry"));
+    reset_bathymetry_button->addActionListener(this);
+
+	save_bathymetry_button.reset(new gcn::Button("Save Bathymetry"));
+    save_bathymetry_button->addActionListener(this);
+
 	pause_simulation_button.reset(new gcn::Button("Pause Simulation"));
     pause_simulation_button->addActionListener(this);
     
@@ -358,7 +326,7 @@ void GuiManager::createGui()
 
             {
                 boost::shared_ptr<MyListModel> list_model(new MyListModel);
-                list_model->add("Photorealstic");
+                list_model->add("Photorealistic");
                 list_model->add("Parula");
                 list_model->add("Jet");
 				list_model->add("Zebra");
@@ -378,6 +346,7 @@ void GuiManager::createGui()
                 list_model->add("u velocity");
                 list_model->add("v velocity");
 				list_model->add("velocity magnitude");
+				list_model->add("vorticity");
                 list_models.push_back(list_model);
             
                 dropdown.reset(new gcn::DropDown(list_model.get()));
@@ -452,9 +421,6 @@ void GuiManager::createGui()
 			}
 			break;
 
-			
-
-			
         case S_LEFT_MOUSE_DROPDOWN:
 
             {
@@ -561,7 +527,13 @@ void GuiManager::createGui()
     y += 16;
     container->add(reset_simulation_button.get(), 8, y);
     container->add(hide_gui_button.get(), 8 + reset_simulation_button->getWidth() + 50, y);
-	
+
+	y += 32;
+    container->add(reset_bathymetry_button.get(), 8, y);
+
+	y += 32;
+    container->add(save_bathymetry_button.get(), 8, y);
+
 	y += 32;
 	container->add(pause_simulation_button.get(), 8, y);
 }
@@ -722,6 +694,11 @@ void GuiManager::action(const gcn::ActionEvent &e)
         resize();
     } else if (e.getSource() == reset_simulation_button.get()) {
         g_reset_type = R_MESH;
+	} else if (e.getSource() == reset_bathymetry_button.get()) {
+        g_reset_type = R_MESH;
+		initSetting.rereadBathy = true;
+	} else if (e.getSource() == save_bathymetry_button.get()) {
+		initSetting.saveBathymetry = true;
 	} else if (e.getSource() == pause_simulation_button.get()) {
         pause = !pause ;
 		pause_simulation_button.get()->setCaption(pause?"Run Simulation":"Pause Simulation");
@@ -734,14 +711,12 @@ void GuiManager::action(const gcn::ActionEvent &e)
     }
 }
 
-
 void GuiManager::init_condition_set_button_do(){
 
 	float H, theta, xcenter, ycenter;
 	const float W = GetSetting("valley_width");
 	const float L = GetSetting("valley_length");
 	float length_in = W + L; // W + L is just a large enough number.
-
 	
 	for (size_t j = 0; j < textfields.size(); ++j) { // Seems with the current GUI structure, iteration is the only way to get to a specific object
 		gcn::TextField *tempField = textfields[j].get();

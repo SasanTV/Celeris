@@ -56,10 +56,13 @@
 #include <fstream>
 #include <string>
 
-//ST_5/13/2015
+
 #include <iostream>
+#include <sstream>
 #include <math.h>
-//
+
+#include <time.h>
+
 
 #ifdef near
 #undef near
@@ -160,6 +163,7 @@ namespace {
         float attenuation_1, attenuation_2;
         
         int nx_plus_1, ny_plus_1;
+		//float dx, dy;
 
         float deep_r, deep_g, deep_b;
 
@@ -647,6 +651,7 @@ namespace {
 	}
 
 
+
 	void st_DumpToFileForDebug(ID3D11DeviceContext *context, ID3D11Texture2D *staging, ID3D11Texture2D *tex, int nx, int ny)
 	{ 
 		context->CopyResource(staging, tex);
@@ -665,6 +670,7 @@ namespace {
 					myfile << i << "\t" << j << "\t" << p[0] << "\t" << p[1] << "\t" << p[2] << "\t" << p[3] << "\n";
 			}
 		}
+		
 	}
 
 
@@ -710,7 +716,6 @@ void ShallowWaterEngine::remesh(ResetType reset_type)
 	createShadersAndInputLayout();
 	createSimTextures(reset_type);
 	
-
 	myTimestep_count = 0;
 	total_time = 0;
 	
@@ -724,6 +729,36 @@ int ShallowWaterEngine::st_getCountOfMatrices(int n){   //returns the number of 
 	return countOfMatrices;
 }
 
+void ShallowWaterEngine::dumpBathymetryToFile()
+{
+	const int nx = GetIntSetting("mesh_size_x");
+	const int ny = GetIntSetting("mesh_size_y");
+
+	time_t timer = time(0);
+	struct tm * now = localtime(&timer);
+	std::ostringstream s;
+	s << now->tm_year + 1900 << "-" << now->tm_mon + 1 << "-" << now->tm_mday << " " << now->tm_hour << "-" << now->tm_min << "-" << now->tm_sec;
+	
+
+	std::string fileName = initSetting.logPath + "/" + s.str() +".cbf";	
+	std::ofstream myfile;
+	if (!myfile.is_open()){
+		myfile.open (fileName.c_str(),std::ios::out | std::ios::app);
+	}
+	myfile << "[nx] " << nx << "\n";
+	myfile << "[ny] " << ny << "\n";
+	myfile << "\n" << "\n";
+	myfile << "====================================" << "\n";
+
+	for (int j = 2; j < ny + 2; ++j) {
+		for (int i = 2; i < nx + 2; ++i) {
+			float z = g_bottom[(nx+4) * j + i].BA;
+			myfile << z << "\t" ;
+		}
+		myfile << "\n";
+	}
+	myfile.close();
+}
 
 
 
@@ -1441,7 +1476,13 @@ void ShallowWaterEngine::timestep()
 	// Swap buffers.
 	sim_idx = 1 - sim_idx;
 }
-
+void ShallowWaterEngine::afterTimestep()
+{
+	if (initSetting.saveBathymetry){
+		dumpBathymetryToFile();
+		initSetting.saveBathymetry = false;
+	}
+}
 void ShallowWaterEngine::resetTimestep(float realworld_dt, float elapsed_time)
 {
     static float old_virtual_time = 1;
@@ -1566,9 +1607,6 @@ void ShallowWaterEngine::resetTimestep(float realworld_dt, float elapsed_time)
         }
     }
 
-
-
-
     {
         MapTexture m(*context, *m_psGetStatsStagingTexture1);
 
@@ -1630,28 +1668,34 @@ void ShallowWaterEngine::resetTimestep(float realworld_dt, float elapsed_time)
     
     fillConstantBuffers();  // communicate new dt to the simulation.
 
-
-
 	if(initSetting.is_there_new_solitary_wave){
 		addSolitaryWave();
 		initSetting.is_there_new_solitary_wave = false;
 	}
 
+
 	static bool colormap_initialized = false;
 	if (!colormap_initialized ){
-		SetSettingMax("Colormap Max",  max_depth);
-		SetSettingMax("Colormap Min",  max_depth);
-		SetSettingMin("Colormap Max", -max_depth);
-		SetSettingMin("Colormap Min", -max_depth);
-		
-		SetSetting("Colormap Max", max_depth/2.0f);
-		SetSetting("Colormap Min", -max_depth/2.0f);
+		float surfaceColormapMin = initSetting.graphics.surfaceShading.autoColormap ? - max_depth : initSetting.graphics.surfaceShading.colormapMin;
+		float surfaceColormapMax = initSetting.graphics.surfaceShading.autoColormap ? + max_depth : initSetting.graphics.surfaceShading.colormapMax;
 
-		SetSettingMax("Colormap Max ",  1.5 * initSetting.max_positive_bathy);
+		SetSettingMax("Colormap Max", surfaceColormapMax);
+		SetSettingMax("Colormap Min", surfaceColormapMax);
+		SetSettingMin("Colormap Max", surfaceColormapMin);
+		SetSettingMin("Colormap Min", surfaceColormapMin);
+		
+		SetSetting("Colormap Max", surfaceColormapMax/2.0f);
+		SetSetting("Colormap Min", surfaceColormapMin/2.0f);
+
+		SetSettingMax("Colormap Max ",  initSetting.graphics.terrainTexture.autoColormap ?
+										1.5 * initSetting.max_positive_bathy :
+										initSetting.graphics.terrainTexture.colormapMax);
 		SetSettingMin("Colormap Max ", 0);
 		
 		SetSettingMax("Colormap Min ", 0);
-		SetSettingMin("Colormap Min ", 1.5 * initSetting.min_negative_bathy);
+		SetSettingMin("Colormap Min ",  initSetting.graphics.terrainTexture.autoColormap ?
+										1.5 * initSetting.min_negative_bathy :
+										initSetting.graphics.terrainTexture.colormapMin);
 		
 		SetSetting("Colormap Max ", initSetting.max_positive_bathy);
 		SetSetting("Colormap Min ", initSetting.min_negative_bathy);
@@ -2403,22 +2447,9 @@ void ShallowWaterEngine::createTerrainTexture()
 }
 
 
-// Creates and initializes the simulation textures
-// Precondition: terrain heightfield is up to date
-void ShallowWaterEngine::createSimTextures(ResetType reset_type)
+
+void ShallowWaterEngine::createTridiagonalCoefTextures()
 {
-	// *******************************************************************************
-	// *******************************************************************************
-	// ******************************** IMPORTANT NOTE *******************************
-	//
-	// Stephen (NLSW developer) used i and j as indices for x and y, respectively.
-	// Sasan (Boussinesq developer) used i and j as indices for y and x, respectively.
-	// Therefore in each [nested] loop you should double check
-	// which index is used in what direction.
-	//
-	// ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-	// ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ READ THIS ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-	// ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
     const int nx = GetIntSetting("mesh_size_x");
     const int ny = GetIntSetting("mesh_size_y");
@@ -2432,184 +2463,22 @@ void ShallowWaterEngine::createSimTextures(ResetType reset_type)
 	const float delta_y2 = delta_y * delta_y;
 	const float sea_level = initSetting.isBoussinesq ? initSetting.stillWaterElevation : -9999; // is model is not boussinesq set sea level to -9999 to make the coeffs ABC = (0,1,0);
 
-	//const float dam_pos = GetSetting("dam_position");
-
-	//some random numbers to generate initial condition
-    const float xmin = -W/6; 
-    const float xmax = W/6;
-    const float ymin = L/3;
-    const float ymax = 2*L/3;
-
-    float init_w = 0;
-	/*
-    if (reset_type == R_VALLEY) {
-        // find the height of the lowest point along the dam
-        float B_min = 99999999.f;
-        for (float x = -W/2; x < W/2; x += W/(nx-1)) {
-            B_min = std::min(B_min, GetTerrainHeight(x, dam_pos));
-        }
-
-        init_w = B_min + 1;
-    } else if (reset_type == R_SEA) {
-        init_w = initSetting.stillWaterElevation;
-    }
-	*/
-            
-    boost::scoped_array<float> ic(new float[(nx+4) * (ny+4) * 4]);
-    float *p = &ic[0];
-
-
-	std::ifstream fileIn ((initSetting.initWFileName).c_str());
-
-	for (int j = 0; j < ny + 4; ++j) {
-
-        for (int i = 0; i < nx + 4; ++i) {
-            const int ii = std::max(2, std::min(nx+1, i));
-            const int jj = std::max(2, std::min(ny+1, j));
-            const float B = g_bottom[(nx+4) * jj + ii].BA;
-			const float waterDepth = std::max(0.0f, initSetting.stillWaterElevation - B);
-            const float x = (ii-2)*W/(nx-1) - W/2;
-            const float y = (jj-2)*L/(ny-1);
-            float w = B;
-			float hu = 0;
-			float hv = 0;
-
-			int xIndex,yIndex;
-			float alphaIn;
-			
-			if (fileIn) //if there is a hotstart file.
-			{
-				fileIn >> xIndex >> yIndex >> w >> hu >> hv >> alphaIn;
-			}
-			else
-			{
-				w = std::max(initSetting.stillWaterElevation,B);
-				hu = 0; hv = 0;
-
-			}
-
-			for (int scounter = 0 ; scounter < initSetting.countOfSolitons; scounter++)
-			{
-				Soliton tempSoliton = initSetting.solitons[scounter];
-				if (tempSoliton.param_h != 0 ) {
-
-					
-					float vert_dist_from_center = abs(sin(tempSoliton.theta) * (delta_x*i-tempSoliton.xc)) +
-												  abs(cos(tempSoliton.theta) * (delta_y*j-tempSoliton.yc));
-
-					float tempState[3];
-					if (vert_dist_from_center > tempSoliton.length/2.0f ){
-						float temp_param_h = 0;
-						/*					
-						const float x_for_temp_param_h = tempSoliton.xc + tempSoliton.length/2.0f * sin(tempSoliton.theta)
-														 + (vert_dist_from_center - tempSoliton.length/2.0f) * cos(tempSoliton.theta);
-						const float y_for_temp_param_h = tempSoliton.yc + tempSoliton.length/2.0f * cos(tempSoliton.theta)
-														 - (vert_dist_from_center - tempSoliton.length/2.0f) * sin(tempSoliton.theta);
-
-						solitaryWave (waterDepth, tempSoliton.param_h, tempSoliton.theta, tempSoliton.xc, tempSoliton.yc, x_for_temp_param_h, y_for_temp_param_h, &temp_param_h, &tempState[1], &tempState[2]);	
-						*/
-						const float smoothing_length = PI / sqrt(0.75f * tempSoliton.param_h/pow(waterDepth,3));
-						if (vert_dist_from_center - tempSoliton.length/2.0f < smoothing_length){
-							temp_param_h = tempSoliton.param_h * (0.5f * cos(PI/smoothing_length *(vert_dist_from_center - tempSoliton.length/2.0f)) + 0.5f); 
-						} else {
-							temp_param_h  = 0;
-						}
-						solitaryWave (waterDepth, temp_param_h, tempSoliton.theta, tempSoliton.xc, tempSoliton.yc, delta_x*i, delta_y*j, &tempState[0], &tempState[1], &tempState[2]);	
-					}
-					else{
-						solitaryWave (waterDepth, tempSoliton.param_h, tempSoliton.theta, tempSoliton.xc, tempSoliton.yc, delta_x*i, delta_y*j, &tempState[0], &tempState[1], &tempState[2]);	
-					
-					}
-					w += tempState[0];
-					hu += tempState[1];
-					hv += tempState[2];
-				}
-			}
-
-
-            // initial condition
-            *p++ = w;  // w
-            *p++ = hu;  // hu
-            *p++ = hv;  // hv
-            *p++ = 0;  // unused
-			
-
-		}
-    }
-	fileIn.close();
-
-    D3D11_SUBRESOURCE_DATA sd;
-    memset(&sd, 0, sizeof(sd));
-    sd.pSysMem = &ic[0];
-    sd.SysMemPitch = (nx+4) * 4 * sizeof(float);
-
-    for (int i = 0; i < NUM_OF_TEXTURES; ++i) {
-        CreateTexture(device,
-                      nx + 4,
-                      ny + 4,
-                      i < 2 ? &sd : 0,
-                      DXGI_FORMAT_R32G32B32A32_FLOAT,
-                      false,
-                      m_psSimTexture[i],
-                      &m_psSimTextureView[i],
-                      &m_psSimRenderTargetView[i]);
-    }
-
-
-//// Initializing right hand side (RHS)	
-	boost::scoped_array<float> tempRHS;
-	tempRHS.reset(new float[(nx_plus_4) * (ny_plus_4) * 4]);
-		
-	
-	int counter=0;
-	for (int j = 0; j < ny_plus_4; ++j) {
-		for (int i = 0; i < nx_plus_4; ++i) {
-			tempRHS[counter]=0; // .r=h
-			counter++;
-			tempRHS[counter]=0; // .g=D1x to find hu
-			counter++;
-			tempRHS[counter]=0; // .b=D1y to find hv
-			counter++;
-			tempRHS[counter]=0; // .a=not used
-			counter++;
-		}
-	}
-	
-
-	
-	sd.pSysMem = &tempRHS[0];
-    sd.SysMemPitch = (nx_plus_4) * 4 * sizeof(float);
-	CreateTexture(device,    //The main Coeff matrix
-				  nx_plus_4,
-				  ny_plus_4,
-				  &sd,
-				  DXGI_FORMAT_R32G32B32A32_FLOAT,
-				  false,
-				  st_psRHSTexture,
-				  &st_psRHSTextureView,
-				  &st_psRHSRenderTargetView);
-
-
-///// ST_: making tridiagonal matrices////
-
-
 	boost::scoped_array<float> matCoeffs[ST_MAX_CR_MATRIX_NUM_X];
 	const int countOfMatricesXdirection = st_getCountOfMatrices(nx);
 	int arrayLength=nx;
 
 	for (int i=0; i<ST_MAX_CR_MATRIX_NUM_X;++i){  //ST_:This can be done till countOfMatricesXdirection, to be on the safe side, I intilize all the ST_MAX_CR_MATRIX_NUM_X scoped arrays.
-		matCoeffs[i].reset(new float[(arrayLength+4) * (ny_plus_4) * 4]); //ST_: ny can be used instead of ny_plus_4
-		arrayLength/=2;
+		matCoeffs[i].reset(new float[(arrayLength+4) * (ny_plus_4) * 4]); //ST_: ny could be used instead of ny_plus_4
+		arrayLength /= 2;
 	}
 	
 /////////////
 	
 	//ST_: Making the first (num 0) MatCoeff of ABCx.
-	counter=0;
+	int counter = 0;
 	for (int i = 0; i < ny_plus_4; ++i) {
 		const int ii = std::max(2, std::min(ny+1, i));
 
-		
 		for (int j = 0; j <= 1; ++j) { // set the Left Margin to (A,B,C)=(0,1,0)
 	        //const int ii = std::max(2, std::min(nx+1, i));
 			//const float B = g_bottom[(nx+4) * jj + ii].BA;
@@ -2622,7 +2491,6 @@ void ShallowWaterEngine::createSimTextures(ResetType reset_type)
 			matCoeffs[0][counter]=0; // .a=not used.
 			counter++;
 		}
-
 
 		for (int j = 2; j <= nx_plus_4-2-1; ++j) {
 			const int jj = std::max(2, std::min(nx+1, j));
@@ -2691,9 +2559,7 @@ void ShallowWaterEngine::createSimTextures(ResetType reset_type)
 
 				float k1= matCoeffs[k-1][previousCounter]/matCoeffs[k-1][previousCounter-4+1]; // A_i/B_(i-1)
 				float k2= matCoeffs[k-1][previousCounter+1+1]/matCoeffs[k-1][previousCounter+4+1]; // C_i/B_(i+1)
-				
-				            
-
+	
 				matCoeffs[k][counter]=-matCoeffs[k-1][previousCounter-4]*k1;  // .r=A   % aOut=-aInLeft*k1
 				counter++;
 
@@ -2721,7 +2587,6 @@ void ShallowWaterEngine::createSimTextures(ResetType reset_type)
 		arrayLength/=2;
 	}
 	
-
 	D3D11_SUBRESOURCE_DATA matCoeffSubData;
     memset(&matCoeffSubData, 0, sizeof(matCoeffSubData));
 	arrayLength=nx;
@@ -2740,109 +2605,6 @@ void ShallowWaterEngine::createSimTextures(ResetType reset_type)
 					  &st_psTriDigRenderTargetView_ABCx[k]);
 		arrayLength/=2;
 	}
-	
-
-	// Making D1x matrices.
-	boost::scoped_array<float> D1x[ST_MAX_CR_MATRIX_NUM_X];
-	
-	arrayLength=nx;
-	for (int i=0; i<ST_MAX_CR_MATRIX_NUM_X;++i){  //ST_:This can be done till countOfMatricesXdirection, to be on the safe side, I intilize all the ST_MAX_CR_MATRIX_NUM_X scoped arrays.
-		D1x[i].reset(new float[(arrayLength+4) * (ny_plus_4)*4]); //ST_: ny can be used instead of ny_plus_4
-		arrayLength/=2;
-	}
-	arrayLength=nx;
-	for (int k=0; k<countOfMatricesXdirection;++k){
-		counter=0;
-		for (int i = 0; i < ny_plus_4; ++i) {
-			
-			for (int j = 0; j <=1; ++j) {
-				D1x[k][counter]=0; // .r=D1x
-				counter++;
-				D1x[k][counter]=0; // .r=not used
-				counter++;
-				D1x[k][counter]=0; // .r=not used
-				counter++;
-				D1x[k][counter]=0; // .r=not used
-				counter++;
-
-			}
-
-
-			for (int j = 2; j <=arrayLength+4-2-1; ++j) {
-				D1x[k][counter]=0;//(j-1)/2.0; // .r=D1x
-				counter++;
-				D1x[k][counter]=0; // .r=not used
-				counter++;
-				D1x[k][counter]=0; // .r=not used
-				counter++;
-				D1x[k][counter]=0; // .r=not used
-				counter++;
-
-			}
-
-			for (int j = 0; j <=1; ++j) {
-				D1x[k][counter]=0; // .r=D1x
-				counter++;
-				D1x[k][counter]=0; // .r=not used
-				counter++;
-				D1x[k][counter]=0; // .r=not used
-				counter++;
-				D1x[k][counter]=0; // .r=not used
-				counter++;
-
-			}
-
-			
-		}
-		arrayLength/=2;
-	}
-
-    memset(&matCoeffSubData, 0, sizeof(matCoeffSubData));
-	arrayLength=nx;
-	for (int k=0; k<countOfMatricesXdirection;++k){
-
-		matCoeffSubData.pSysMem = &D1x[k][0];
-		matCoeffSubData.SysMemPitch = (arrayLength+4) * 4 * sizeof(float); 
-		CreateTexture(device,    //The D1x matrix, //Initialization to zero!
-				  arrayLength+4,
-				  ny_plus_4,
-				  &matCoeffSubData,
-				  DXGI_FORMAT_R32G32B32A32_FLOAT,
-				  false,
-				  st_psTriDigTexture_D1x[k],
-				  &st_psTriDigTextureView_D1x[k],
-				  &st_psTriDigRenderTargetView_D1x[k]);
-
-		CreateTexture(device,    //The D1x matrix copy, used to get the unkown values in Ax=D.
-					  arrayLength+4,
-					  ny_plus_4,
-					  &matCoeffSubData,
-					  DXGI_FORMAT_R32G32B32A32_FLOAT,
-					  false,
-					  st_psTriDigTexture_D1xCopy[k],
-					  &st_psTriDigTextureView_D1xCopy[k],
-					  &st_psTriDigRenderTargetView_D1xCopy[k]);
-
-	    CreateTexture(device,
-              arrayLength+4,
-              ny + 4,
-              0,
-              DXGI_FORMAT_R32G32B32A32_FLOAT,
-              true,
-              st_psStagingTextureX[k],
-              0,
-              0);
-
-		arrayLength/=2;
-	}
-
-
-
-
-
-	
-///// ST_: making tridiagonal matrices in y direction
-
 
 	boost::scoped_array<float> matCoeffs_y[ST_MAX_CR_MATRIX_NUM_Y];
 	const int countOfMatricesYdirection = st_getCountOfMatrices(ny);
@@ -2853,10 +2615,6 @@ void ShallowWaterEngine::createSimTextures(ResetType reset_type)
 		arrayLength/=2;
 	}
 	
-
-
-
-
 	//ST_: Making the first (num 0) MatCoeff of ABCy.
 	counter=0;
 	for (int i = 0; i < ny_plus_4; ++i) {
@@ -2946,8 +2704,6 @@ void ShallowWaterEngine::createSimTextures(ResetType reset_type)
 		arrayLength/=2;
 	}
 	
-
-
     memset(&matCoeffSubData, 0, sizeof(matCoeffSubData));
 	arrayLength=ny;
 	for (int k=0; k<countOfMatricesYdirection;++k){
@@ -2965,9 +2721,283 @@ void ShallowWaterEngine::createSimTextures(ResetType reset_type)
 					  &st_psTriDigRenderTargetView_ABCy[k]);
 		arrayLength/=2;
 	}
+}
+// Creates and initializes the simulation textures
+// Precondition: terrain heightfield is up to date
+void ShallowWaterEngine::createSimTextures(ResetType reset_type)
+{
+	// *******************************************************************************
+	// *******************************************************************************
+	// ******************************** IMPORTANT NOTE *******************************
+	//
+	// Stephen (NLSW developer) used i and j as indices for x and y, respectively.
+	// Sasan (Boussinesq developer) used i and j as indices for y and x, respectively.
+	// Therefore in each [nested] loop you should double check
+	// which index is used in what direction.
+	//
+	// ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	// ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ READ THIS ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	// ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    const int nx = GetIntSetting("mesh_size_x");
+    const int ny = GetIntSetting("mesh_size_y");
+	const int nx_plus_4=nx+4;
+	const int ny_plus_4=ny+4;
+	const float W = GetSetting("valley_width");
+	const float L = GetSetting("valley_length");
+	const float delta_x = W / (nx-1);
+	const float delta_y = L / (ny-1);
+	const float delta_x2 = delta_x * delta_x;
+	const float delta_y2 = delta_y * delta_y;
+	const float sea_level = initSetting.isBoussinesq ? initSetting.stillWaterElevation : -9999; // is model is not boussinesq set sea level to -9999 to make the coeffs ABC = (0,1,0);
+
+	//const float dam_pos = GetSetting("dam_position");
+
+	//some random numbers to generate initial condition
+    const float xmin = -W/6; 
+    const float xmax = W/6;
+    const float ymin = L/3;
+    const float ymax = 2*L/3;
+
+    float init_w = 0;
+	/*
+    if (reset_type == R_VALLEY) {
+        // find the height of the lowest point along the dam
+        float B_min = 99999999.f;
+        for (float x = -W/2; x < W/2; x += W/(nx-1)) {
+            B_min = std::min(B_min, GetTerrainHeight(x, dam_pos));
+        }
+
+        init_w = B_min + 1;
+    } else if (reset_type == R_SEA) {
+        init_w = initSetting.stillWaterElevation;
+    }
+	*/
+            
+    boost::scoped_array<float> ic(new float[(nx+4) * (ny+4) * 4]);
+    float *p = &ic[0];
+
+	std::ifstream fileIn ((initSetting.initWFileName).c_str());
+
+	for (int j = 0; j < ny + 4; ++j) {
+
+        for (int i = 0; i < nx + 4; ++i) {
+            const int ii = std::max(2, std::min(nx+1, i));
+            const int jj = std::max(2, std::min(ny+1, j));
+            const float B = g_bottom[(nx+4) * jj + ii].BA;
+			const float waterDepth = std::max(0.0f, initSetting.stillWaterElevation - B);
+            const float x = (ii-2)*W/(nx-1) - W/2;
+            const float y = (jj-2)*L/(ny-1);
+            float w = B;
+			float hu = 0;
+			float hv = 0;
+
+			int xIndex,yIndex;
+			float alphaIn;
+			
+			if (fileIn) //if there is a hotstart file.
+			{
+				fileIn >> xIndex >> yIndex >> w >> hu >> hv >> alphaIn;
+			}
+			else
+			{
+				w = std::max(initSetting.stillWaterElevation,B);
+				hu = 0; hv = 0;
+
+			}
+
+			for (int scounter = 0 ; scounter < initSetting.countOfSolitons; scounter++)
+			{
+				Soliton tempSoliton = initSetting.solitons[scounter];
+				if (tempSoliton.param_h != 0 ) {
+
+					
+					float vert_dist_from_center = abs(sin(tempSoliton.theta) * (delta_x*i-tempSoliton.xc)) +
+												  abs(cos(tempSoliton.theta) * (delta_y*j-tempSoliton.yc));
+
+					float tempState[3];
+					if (vert_dist_from_center > tempSoliton.length/2.0f ){
+						float temp_param_h = 0;
+						/*					
+						const float x_for_temp_param_h = tempSoliton.xc + tempSoliton.length/2.0f * sin(tempSoliton.theta)
+														 + (vert_dist_from_center - tempSoliton.length/2.0f) * cos(tempSoliton.theta);
+						const float y_for_temp_param_h = tempSoliton.yc + tempSoliton.length/2.0f * cos(tempSoliton.theta)
+														 - (vert_dist_from_center - tempSoliton.length/2.0f) * sin(tempSoliton.theta);
+
+						solitaryWave (waterDepth, tempSoliton.param_h, tempSoliton.theta, tempSoliton.xc, tempSoliton.yc, x_for_temp_param_h, y_for_temp_param_h, &temp_param_h, &tempState[1], &tempState[2]);	
+						*/
+						const float smoothing_length = PI / sqrt(0.75f * tempSoliton.param_h/pow(waterDepth,3));
+						if (vert_dist_from_center - tempSoliton.length/2.0f < smoothing_length){
+							temp_param_h = tempSoliton.param_h * (0.5f * cos(PI/smoothing_length *(vert_dist_from_center - tempSoliton.length/2.0f)) + 0.5f); 
+						} else {
+							temp_param_h  = 0;
+						}
+						solitaryWave (waterDepth, temp_param_h, tempSoliton.theta, tempSoliton.xc, tempSoliton.yc, delta_x*i, delta_y*j, &tempState[0], &tempState[1], &tempState[2]);	
+					}
+					else{
+						solitaryWave (waterDepth, tempSoliton.param_h, tempSoliton.theta, tempSoliton.xc, tempSoliton.yc, delta_x*i, delta_y*j, &tempState[0], &tempState[1], &tempState[2]);	
+					
+					}
+					w += tempState[0];
+					hu += tempState[1];
+					hv += tempState[2];
+				}
+			}
+
+            // initial condition
+            *p++ = w;  // w
+            *p++ = hu;  // hu
+            *p++ = hv;  // hv
+            *p++ = 0;  // unused
+		}
+    }
+	fileIn.close();
+
+    D3D11_SUBRESOURCE_DATA sd;
+    memset(&sd, 0, sizeof(sd));
+    sd.pSysMem = &ic[0];
+    sd.SysMemPitch = (nx+4) * 4 * sizeof(float);
+
+    for (int i = 0; i < NUM_OF_TEXTURES; ++i) {
+        CreateTexture(device,
+                      nx + 4,
+                      ny + 4,
+                      i < 2 ? &sd : 0,
+                      DXGI_FORMAT_R32G32B32A32_FLOAT,
+                      false,
+                      m_psSimTexture[i],
+                      &m_psSimTextureView[i],
+                      &m_psSimRenderTargetView[i]);
+    }
+
+
+//// Initializing right hand side (RHS)	
+	boost::scoped_array<float> tempRHS;
+	tempRHS.reset(new float[(nx_plus_4) * (ny_plus_4) * 4]);
 	
+	int counter=0;
+	for (int j = 0; j < ny_plus_4; ++j) {
+		for (int i = 0; i < nx_plus_4; ++i) {
+			tempRHS[counter]=0; // .r=h
+			counter++;
+			tempRHS[counter]=0; // .g=D1x to find hu
+			counter++;
+			tempRHS[counter]=0; // .b=D1y to find hv
+			counter++;
+			tempRHS[counter]=0; // .a=not used
+			counter++;
+		}
+	}
+
+	sd.pSysMem = &tempRHS[0];
+    sd.SysMemPitch = (nx_plus_4) * 4 * sizeof(float);
+	CreateTexture(device,    //The main Coeff matrix
+				  nx_plus_4,
+				  ny_plus_4,
+				  &sd,
+				  DXGI_FORMAT_R32G32B32A32_FLOAT,
+				  false,
+				  st_psRHSTexture,
+				  &st_psRHSTextureView,
+				  &st_psRHSRenderTargetView);
+	
+	createTridiagonalCoefTextures();
+	
+	const int countOfMatricesXdirection = st_getCountOfMatrices(nx);
+	int arrayLength=nx;
+
+	// Making D1x matrices.
+	boost::scoped_array<float> D1x[ST_MAX_CR_MATRIX_NUM_X];
+	
+	arrayLength=nx;
+	for (int i=0; i<ST_MAX_CR_MATRIX_NUM_X;++i){  //ST_:This can be done till countOfMatricesXdirection, to be on the safe side, I intilize all the ST_MAX_CR_MATRIX_NUM_X scoped arrays.
+		D1x[i].reset(new float[(arrayLength+4) * (ny_plus_4)*4]); //ST_: ny can be used instead of ny_plus_4
+		arrayLength/=2;
+	}
+	arrayLength=nx;
+	for (int k=0; k<countOfMatricesXdirection;++k){
+		counter=0;
+		for (int i = 0; i < ny_plus_4; ++i) {
+			
+			for (int j = 0; j <=1; ++j) {
+				D1x[k][counter]=0; // .r=D1x
+				counter++;
+				D1x[k][counter]=0; // .r=not used
+				counter++;
+				D1x[k][counter]=0; // .r=not used
+				counter++;
+				D1x[k][counter]=0; // .r=not used
+				counter++;
+
+			}
+
+			for (int j = 2; j <=arrayLength+4-2-1; ++j) {
+				D1x[k][counter]=0;//(j-1)/2.0; // .r=D1x
+				counter++;
+				D1x[k][counter]=0; // .r=not used
+				counter++;
+				D1x[k][counter]=0; // .r=not used
+				counter++;
+				D1x[k][counter]=0; // .r=not used
+				counter++;
+			}
+
+			for (int j = 0; j <=1; ++j) {
+				D1x[k][counter]=0; // .r=D1x
+				counter++;
+				D1x[k][counter]=0; // .r=not used
+				counter++;
+				D1x[k][counter]=0; // .r=not used
+				counter++;
+				D1x[k][counter]=0; // .r=not used
+				counter++;
+			}
+		}
+		arrayLength/=2;
+	}
+
+	D3D11_SUBRESOURCE_DATA matCoeffSubData;
+    memset(&matCoeffSubData, 0, sizeof(matCoeffSubData));
+	arrayLength=nx;
+	for (int k=0; k<countOfMatricesXdirection;++k){
+
+		matCoeffSubData.pSysMem = &D1x[k][0];
+		matCoeffSubData.SysMemPitch = (arrayLength+4) * 4 * sizeof(float); 
+		CreateTexture(device,    //The D1x matrix, //Initialization to zero!
+				  arrayLength+4,
+				  ny_plus_4,
+				  &matCoeffSubData,
+				  DXGI_FORMAT_R32G32B32A32_FLOAT,
+				  false,
+				  st_psTriDigTexture_D1x[k],
+				  &st_psTriDigTextureView_D1x[k],
+				  &st_psTriDigRenderTargetView_D1x[k]);
+
+		CreateTexture(device,    //The D1x matrix copy, used to get the unkown values in Ax=D.
+					  arrayLength+4,
+					  ny_plus_4,
+					  &matCoeffSubData,
+					  DXGI_FORMAT_R32G32B32A32_FLOAT,
+					  false,
+					  st_psTriDigTexture_D1xCopy[k],
+					  &st_psTriDigTextureView_D1xCopy[k],
+					  &st_psTriDigRenderTargetView_D1xCopy[k]);
+
+	    CreateTexture(device,
+              arrayLength+4,
+              ny + 4,
+              0,
+              DXGI_FORMAT_R32G32B32A32_FLOAT,
+              true,
+              st_psStagingTextureX[k],
+              0,
+              0);
+
+		arrayLength/=2;
+	}
 
 	// Making D1y matrices.
+	const int countOfMatricesYdirection = st_getCountOfMatrices(ny);
 	boost::scoped_array<float> D1y[ST_MAX_CR_MATRIX_NUM_Y];
 	
 	arrayLength=ny;
@@ -3044,9 +3074,6 @@ void ShallowWaterEngine::createSimTextures(ResetType reset_type)
 
 		arrayLength/=2;
 	}
-
-
-	////////////////////////yyyyyyyyyyyyyyyyyyyyyyyy///////////////////////////
 
 	// TODO: This has no need to be (nx+4) by (ny+4),
     // we only ever use the top left quarter of it ((nx/4) by (ny/4))...
@@ -3557,15 +3584,20 @@ void ShallowWaterEngine::fillConstantBuffers()
 
     cb.nx_plus_1 = nx + 1;
     cb.ny_plus_1 = ny + 1;
+/*
+	cb.dx =  W / (nx - 1);
+    cb.dy =  L / (ny - 1);
+*/
 	cb.zScale = GetSetting("Vertical_Scale");
 	cb.seaLevel = initSetting.stillWaterElevation;
 		
+	static bool firstCall = true;
 	static int shading_status = GetIntSetting("Surface Shading");
-	if (shading_status != GetIntSetting("Surface Shading"))
+	if (shading_status != GetIntSetting("Surface Shading") || firstCall)
 	{
 		shading_status = GetIntSetting("Surface Shading");
 		if (shading_status == PHOTOREALISTIC){
-			SetSettingD("fresnel_coeff",0.93);
+			SetSettingD("fresnel_coeff",initSetting.graphics.fresnelCoef);
 		} else {
 				loadColormap(shading_status);
 				SetSettingD("fresnel_coeff",0);
@@ -3574,17 +3606,18 @@ void ShallowWaterEngine::fillConstantBuffers()
 	}
 
 	static int terrain_texture = GetIntSetting("Terrain Texture");
-	if (terrain_texture != GetIntSetting("Terrain Texture"))
+	if (terrain_texture != GetIntSetting("Terrain Texture") || firstCall)
 	{
 		terrain_texture = GetIntSetting("Terrain Texture");
 		loadTerrainShading(terrain_texture);
 	}
 
 	static int skybox_texture = GetIntSetting("Skybox");
-	if (skybox_texture != GetIntSetting("Skybox"))
+	if (skybox_texture != GetIntSetting("Skybox") || firstCall)
 	{
 		skybox_texture = GetIntSetting("Skybox");
-			loadSkybox(skybox_texture);
+		loadSkybox(skybox_texture);
+		firstCall = false;
 	}
 
 
@@ -4385,6 +4418,8 @@ void ShallowWaterEngine::raiseLowerTerrain(float world_x, float world_y, float d
                                &g_terrain_heightfield[iy_min * (nx+4) + ix_min],  // src data
                                (nx+4) * 3 * sizeof(float),   // row pitch
                                0);  // depth pitch (unused)    
+
+	createTridiagonalCoefTextures();
 }
 
 void ShallowWaterEngine::setupMousePicking()

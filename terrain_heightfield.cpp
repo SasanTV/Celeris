@@ -134,6 +134,7 @@ int bathymetry_ny;
 //CAUTION: bathymetry does not have ghost zones
 void readBathymetry ()
 {
+
 	std::ifstream in ((initSetting.bathymetryFileName).c_str());
 	//MISSING catch
 	
@@ -192,11 +193,9 @@ void readBathymetry ()
 			initSetting.max_positive_bathy = std::max(initSetting.max_positive_bathy, z);
 			initSetting.min_negative_bathy = std::min(initSetting.min_negative_bathy, z);
 			initSetting.min_bathy = std::min(initSetting.min_bathy,z);
-
 		}
 	}
 
-	 
 	float max_celerity = sqrt((initSetting.stillWaterElevation - initSetting.min_bathy)*GetSetting("gravity"));
 	const float nx = GetIntSetting("mesh_size_x");
 	const float ny = GetIntSetting("mesh_size_y");
@@ -205,7 +204,6 @@ void readBathymetry ()
 	const float dx = W / (nx-1);
 	const float dy = L / (ny-1);
 	SetSetting("nominal_cfl", initSetting.timestep / (std::min(dx,dy)/max_celerity));
-	    
 }
 
 
@@ -243,6 +241,7 @@ float getBathymetry (float x, float y)
 }
 void UpdateTerrainHeightfield()
 {
+	if(!initSetting.rereadBathy) return;
     using namespace std;
 
     const int nx = GetIntSetting("mesh_size_x");
@@ -305,6 +304,8 @@ void UpdateTerrainHeightfield()
 			g_terrain_heightfield[j * pitch + i].dBdy = (g_bottom[j * pitch + i].BY - g_bottom[j * pitch + i].BA)/(2*dy);
         }
     }
+
+	initSetting.rereadBathy = false;
 }
 
 float GetTerrainHeight(float x, float y)
