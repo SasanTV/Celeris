@@ -59,7 +59,7 @@ Setting g_settings[] =
     {
         // name, unit, type, min, max, default
 
-		{ "Stats", "", S_NEW_TAB },
+		{ "Dash", "", S_NEW_TAB },
         { "left_mouse_action", "", S_LEFT_MOUSE_DROPDOWN, R_NONE, 0, 4, 0 },
         { "left_mouse_radius", "", S_SLIDER, R_NONE, 1, 25, 5 },
         { "left_mouse_strength", "", S_SLIDER, R_NONE, 1, 50, 10 },
@@ -93,9 +93,6 @@ Setting g_settings[] =
         { "depth", "", S_LABEL },
         { "u", "", S_LABEL },
         { "v", "", S_LABEL },
-		
-		
-        //{ "froude", "", S_LABEL },
 
         // SETTINGS TAB
         
@@ -252,9 +249,6 @@ Setting g_settings[] =
         { "deep_g", "", S_SLIDER, R_NONE, 0, 1 },
         { "deep_b", "", S_SLIDER, R_NONE, 0, 1 },
 		*/
-
-
-	
 
         // NON TABBED WIDGETS
 

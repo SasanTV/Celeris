@@ -56,10 +56,13 @@
 #include <fstream>
 #include <string>
 
-//ST_5/13/2015
+
 #include <iostream>
+#include <sstream>
 #include <math.h>
-//
+
+#include <time.h>
+
 
 #ifdef near
 #undef near
@@ -648,6 +651,7 @@ namespace {
 	}
 
 
+
 	void st_DumpToFileForDebug(ID3D11DeviceContext *context, ID3D11Texture2D *staging, ID3D11Texture2D *tex, int nx, int ny)
 	{ 
 		context->CopyResource(staging, tex);
@@ -666,6 +670,7 @@ namespace {
 					myfile << i << "\t" << j << "\t" << p[0] << "\t" << p[1] << "\t" << p[2] << "\t" << p[3] << "\n";
 			}
 		}
+		
 	}
 
 
@@ -724,6 +729,36 @@ int ShallowWaterEngine::st_getCountOfMatrices(int n){   //returns the number of 
 	return countOfMatrices;
 }
 
+void ShallowWaterEngine::dumpBathymetryToFile()
+{
+	const int nx = GetIntSetting("mesh_size_x");
+	const int ny = GetIntSetting("mesh_size_y");
+
+	time_t timer = time(0);
+	struct tm * now = localtime(&timer);
+	std::ostringstream s;
+	s << now->tm_year + 1900 << "-" << now->tm_mon + 1 << "-" << now->tm_mday << " " << now->tm_hour << "-" << now->tm_min << "-" << now->tm_sec;
+	
+
+	std::string fileName = initSetting.logPath + "/" + s.str() +".cbf";	
+	std::ofstream myfile;
+	if (!myfile.is_open()){
+		myfile.open (fileName.c_str(),std::ios::out | std::ios::app);
+	}
+	myfile << "[nx] " << nx << "\n";
+	myfile << "[ny] " << ny << "\n";
+	myfile << "\n" << "\n";
+	myfile << "====================================" << "\n";
+
+	for (int j = 2; j < ny + 2; ++j) {
+		for (int i = 2; i < nx + 2; ++i) {
+			float z = g_bottom[(nx+4) * j + i].BA;
+			myfile << z << "\t" ;
+		}
+		myfile << "\n";
+	}
+	myfile.close();
+}
 
 
 
@@ -1441,7 +1476,13 @@ void ShallowWaterEngine::timestep()
 	// Swap buffers.
 	sim_idx = 1 - sim_idx;
 }
-
+void ShallowWaterEngine::afterTimestep()
+{
+	if (initSetting.saveBathymetry){
+		dumpBathymetryToFile();
+		initSetting.saveBathymetry = false;
+	}
+}
 void ShallowWaterEngine::resetTimestep(float realworld_dt, float elapsed_time)
 {
     static float old_virtual_time = 1;
@@ -1566,9 +1607,6 @@ void ShallowWaterEngine::resetTimestep(float realworld_dt, float elapsed_time)
         }
     }
 
-
-
-
     {
         MapTexture m(*context, *m_psGetStatsStagingTexture1);
 
@@ -1630,29 +1668,34 @@ void ShallowWaterEngine::resetTimestep(float realworld_dt, float elapsed_time)
     
     fillConstantBuffers();  // communicate new dt to the simulation.
 
-
-
 	if(initSetting.is_there_new_solitary_wave){
 		addSolitaryWave();
 		initSetting.is_there_new_solitary_wave = false;
 	}
 
+
 	static bool colormap_initialized = false;
 	if (!colormap_initialized ){
-		float colormapMinMax = initSetting.graphics.autoColormap ? max_depth : initSetting.graphics.colormapMinMax;
-		SetSettingMax("Colormap Max",  colormapMinMax);
-		SetSettingMax("Colormap Min",  colormapMinMax);
-		SetSettingMin("Colormap Max", -colormapMinMax);
-		SetSettingMin("Colormap Min", -colormapMinMax);
-		
-		SetSetting("Colormap Max", colormapMinMax/2.0f);
-		SetSetting("Colormap Min", -colormapMinMax/2.0f);
+		float surfaceColormapMin = initSetting.graphics.surfaceShading.autoColormap ? - max_depth : initSetting.graphics.surfaceShading.colormapMin;
+		float surfaceColormapMax = initSetting.graphics.surfaceShading.autoColormap ? + max_depth : initSetting.graphics.surfaceShading.colormapMax;
 
-		SetSettingMax("Colormap Max ",  1.5 * initSetting.max_positive_bathy);
+		SetSettingMax("Colormap Max", surfaceColormapMax);
+		SetSettingMax("Colormap Min", surfaceColormapMax);
+		SetSettingMin("Colormap Max", surfaceColormapMin);
+		SetSettingMin("Colormap Min", surfaceColormapMin);
+		
+		SetSetting("Colormap Max", surfaceColormapMax/2.0f);
+		SetSetting("Colormap Min", surfaceColormapMin/2.0f);
+
+		SetSettingMax("Colormap Max ",  initSetting.graphics.terrainTexture.autoColormap ?
+										1.5 * initSetting.max_positive_bathy :
+										initSetting.graphics.terrainTexture.colormapMax);
 		SetSettingMin("Colormap Max ", 0);
 		
 		SetSettingMax("Colormap Min ", 0);
-		SetSettingMin("Colormap Min ", 1.5 * initSetting.min_negative_bathy);
+		SetSettingMin("Colormap Min ",  initSetting.graphics.terrainTexture.autoColormap ?
+										1.5 * initSetting.min_negative_bathy :
+										initSetting.graphics.terrainTexture.colormapMin);
 		
 		SetSetting("Colormap Max ", initSetting.max_positive_bathy);
 		SetSetting("Colormap Min ", initSetting.min_negative_bathy);
@@ -3548,12 +3591,13 @@ void ShallowWaterEngine::fillConstantBuffers()
 	cb.zScale = GetSetting("Vertical_Scale");
 	cb.seaLevel = initSetting.stillWaterElevation;
 		
+	static bool firstCall = true;
 	static int shading_status = GetIntSetting("Surface Shading");
-	if (shading_status != GetIntSetting("Surface Shading"))
+	if (shading_status != GetIntSetting("Surface Shading") || firstCall)
 	{
 		shading_status = GetIntSetting("Surface Shading");
 		if (shading_status == PHOTOREALISTIC){
-			SetSettingD("fresnel_coeff",0.93);
+			SetSettingD("fresnel_coeff",initSetting.graphics.fresnelCoef);
 		} else {
 				loadColormap(shading_status);
 				SetSettingD("fresnel_coeff",0);
@@ -3562,17 +3606,18 @@ void ShallowWaterEngine::fillConstantBuffers()
 	}
 
 	static int terrain_texture = GetIntSetting("Terrain Texture");
-	if (terrain_texture != GetIntSetting("Terrain Texture"))
+	if (terrain_texture != GetIntSetting("Terrain Texture") || firstCall)
 	{
 		terrain_texture = GetIntSetting("Terrain Texture");
 		loadTerrainShading(terrain_texture);
 	}
 
 	static int skybox_texture = GetIntSetting("Skybox");
-	if (skybox_texture != GetIntSetting("Skybox"))
+	if (skybox_texture != GetIntSetting("Skybox") || firstCall)
 	{
 		skybox_texture = GetIntSetting("Skybox");
-			loadSkybox(skybox_texture);
+		loadSkybox(skybox_texture);
+		firstCall = false;
 	}
 
 

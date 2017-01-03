@@ -318,7 +318,7 @@ int real_main()
     std::auto_ptr<MyListener> listener;
     boost::shared_ptr<Coercri::DX11Window> window = 
         boost::static_pointer_cast<Coercri::DX11Window>(
-            gfx_driver->createWindow(g_width + GUI_WIDTH, g_height, true, false, initSetting.project_name + " - Celeris Advent (v1.2.2)"));
+            gfx_driver->createWindow(g_width + GUI_WIDTH, g_height, true, false, initSetting.project_name + " - Celeris Advent (v1.2.3)"));
     GuiManager gui_manager(window, timer, GUI_WIDTH);
 	
     // Create the ShallowWaterEngine
@@ -423,6 +423,7 @@ int real_main()
 						++timestep_count;
 					}
 				}
+				engine->afterTimestep();
 
                 // clear the screen
                 const float rgba[] = { 0, 0, 0, 1 };
@@ -800,62 +801,59 @@ bool readInputCML()
 				elem->QueryBoolAttribute("doLog", &doLog);
 				initSetting.doLog = doLog;
 
-				if (doLog)
-				{
-					int logStep;
-					elem->QueryIntAttribute("logStep", &logStep);
-					initSetting.logStep = logStep;
-					int rangeCounter = 0;
-					int gaugeCounter = 0;
+				int logStep;
+				elem->QueryIntAttribute("logStep", &logStep);
+				initSetting.logStep = logStep;
+				int rangeCounter = 0;
+				int gaugeCounter = 0;
 
-					for(TiXmlElement* elem2 = elem->FirstChildElement(); elem2 != NULL; elem2 = elem2->NextSiblingElement()){
-						std::string elem2Name = elem2->Value() ;
-						
-						if(elem2Name == "logPath"){
-						//initSetting.logPath = elem->FirstChildElement("logPath")->FirstChild()->ToText()->Value();
-							std::string tempString = elem2->FirstChild()->ToText()->Value();
-							const char *pp;
-							pp =  tempString.c_str();
-							if (PathIsRelative(pp)){
-								initSetting.logPath = extractPath(initSetting.initCMLName) + "/" + tempString;
-							} else {
-								initSetting.logPath = tempString;
-							}
-						}
-						
-						else if (elem2Name == "range"){;
-							int x1,y1,x2,y2;
-							std::string filename = "";
-							elem2->QueryStringAttribute("filename", &filename);
-
-							elem2->FirstChildElement("bottomLeft")->QueryIntAttribute("x", &x1);
-							elem2->FirstChildElement("bottomLeft")->QueryIntAttribute("y", &y1);
-							elem2->FirstChildElement("topRight")->QueryIntAttribute("x", &x2);
-							elem2->FirstChildElement("topRight")->QueryIntAttribute("y", &y2);
-							
-							initSetting.logRange[rangeCounter] = Range(filename, Point(x1,y1),Point(x2,y2));
-							++rangeCounter;
-						}
-						else if (elem2Name == "gauges"){
-							std::string data;
-							std::string filename = "";
-							elem2->QueryStringAttribute("filename", &filename);
-							initSetting.gaugesFilename = filename;
-							data = elem2->FirstChild()->ToText()->Value();
-							std::stringstream ss(data);
-							char comma;
-							int x,y;
-							while (ss){
-								ss >> x >> comma >> y >> comma;
-								initSetting.logGauges[gaugeCounter] = Point(x,y);
-								++gaugeCounter;
-							}
+				for(TiXmlElement* elem2 = elem->FirstChildElement(); elem2 != NULL; elem2 = elem2->NextSiblingElement()){
+					std::string elem2Name = elem2->Value() ;
+					
+					if(elem2Name == "logPath"){
+					//initSetting.logPath = elem->FirstChildElement("logPath")->FirstChild()->ToText()->Value();
+						TiXmlNode* tempChild = elem2->FirstChild();
+						std::string tempString = tempChild? tempChild->ToText()->Value() : "";
+						const char *pp;
+						pp =  tempString.c_str();
+						if (PathIsRelative(pp)){
+							initSetting.logPath = extractPath(initSetting.initCMLName) + "/" + tempString;
+						} else {
+							initSetting.logPath = tempString;
 						}
 					}
-					initSetting.countOfRanges = rangeCounter;
-					initSetting.countOfGauges = gaugeCounter;
+					else if (elem2Name == "range"){
+						int x1,y1,x2,y2;
+						std::string filename = "";
+						elem2->QueryStringAttribute("filename", &filename);
 
+						elem2->FirstChildElement("bottomLeft")->QueryIntAttribute("x", &x1);
+						elem2->FirstChildElement("bottomLeft")->QueryIntAttribute("y", &y1);
+						elem2->FirstChildElement("topRight")->QueryIntAttribute("x", &x2);
+						elem2->FirstChildElement("topRight")->QueryIntAttribute("y", &y2);
+						
+						initSetting.logRange[rangeCounter] = Range(filename, Point(x1,y1),Point(x2,y2));
+						++rangeCounter;
+					}
+					else if (elem2Name == "gauges"){
+						std::string data;
+						std::string filename = "";
+						elem2->QueryStringAttribute("filename", &filename);
+						initSetting.gaugesFilename = filename;
+						data = elem2->FirstChild()->ToText()->Value();
+						std::stringstream ss(data);
+						char comma;
+						int x,y;
+						while (ss){
+							ss >> x >> comma >> y >> comma;
+							initSetting.logGauges[gaugeCounter] = Point(x,y);
+							++gaugeCounter;
+						}
+					}
 				}
+				initSetting.countOfRanges = rangeCounter;
+				initSetting.countOfGauges = gaugeCounter;
+
 			}
 			else if(elemName == "graphics")
 			{
@@ -864,6 +862,7 @@ bool readInputCML()
 		}
 		
 		if(initSetting.graphics.autoCam){
+			initSetting.graphics.camera.fov = 50.0f;
 			initSetting.graphics.camera.x = - initSetting.width / 2;
 			initSetting.graphics.camera.y = 0;
 			initSetting.graphics.camera.z = sqrt( initSetting.width*initSetting.width + initSetting.length*initSetting.length); //sqrt(initSetting.width * initSetting.length) * 1.2;
@@ -899,21 +898,76 @@ void readGraphicsInput_helper(TiXmlElement* root){
 			initSetting.graphics.gridOn = gridOn;
 			initSetting.graphics.gridScale = gridScale;
 		}
-		else if(elemName == "colormap")
+		else if(elemName == "surfaceShading")
 		{
-			float colormapMinMax;
-			bool autoColormap;
-			elem->QueryBoolAttribute("auto", &autoColormap);
-			elem->QueryFloatAttribute("minMaxValue", &colormapMinMax);
+			int type = 0;
+			elem->QueryIntAttribute("type", &type);
+			initSetting.graphics.surfaceShading.type = static_cast<ShadingOptions>(type);
+			for(TiXmlElement* elem2 = elem->FirstChildElement(); elem2 != NULL; elem2 = elem2->NextSiblingElement()){
+				std::string elem2Name = elem2->Value() ;
+				if(elem2Name == "colormap"){
+					float colormapMin = -1.0f;
+					float colormapMax = +1.0f;
+					bool autoColormap = true;
 
-			initSetting.graphics.autoColormap = autoColormap;
-			initSetting.graphics.colormapMinMax = colormapMinMax;
+					elem2->QueryBoolAttribute("auto", &autoColormap);
+					initSetting.graphics.surfaceShading.autoColormap = autoColormap;
+
+					elem2->QueryFloatAttribute("min", &colormapMin);
+					initSetting.graphics.surfaceShading.colormapMin = colormapMin;						
+
+					elem2->QueryFloatAttribute("max", &colormapMax);
+					initSetting.graphics.surfaceShading.colormapMax = colormapMax;						
+				}
+				else if (elem2Name == "shadingVariable"){
+					int value = 0;
+
+					elem2->QueryIntAttribute("value", &value);
+					initSetting.graphics.surfaceShading.shadingVariable = value;
+				}
+			}
+		}
+		else if(elemName == "terrainTexture")
+		{
+			int type;
+			elem->QueryIntAttribute("type", &type);
+			initSetting.graphics.terrainTexture.type = type;
+			for(TiXmlElement* elem2 = elem->FirstChildElement(); elem2 != NULL; elem2 = elem2->NextSiblingElement()){
+				std::string elem2Name = elem2->Value() ;
+				if(elem2Name == "colormap"){
+					float colormapMin = -1.0f;
+					float colormapMax = +1.0f;
+					bool autoColormap = true;
+
+					elem2->QueryBoolAttribute("auto", &autoColormap);
+					initSetting.graphics.terrainTexture.autoColormap = autoColormap;
+
+					elem2->QueryFloatAttribute("min", &colormapMin);
+					initSetting.graphics.terrainTexture.colormapMin = colormapMin;	
+					elem2->QueryFloatAttribute("max", &colormapMax);
+					initSetting.graphics.terrainTexture.colormapMax = colormapMax;
+				}
+			}
+		}
+		else if(elemName == "skybox")
+		{
+			int type;
+			elem->QueryIntAttribute("type", &type);
+			initSetting.graphics.skyboxType = type;				
 		}
 		else if(elemName == "lighting")
 		{
-			float ambientLight;
+			float ambientLight = 1.0f;
 			elem->QueryFloatAttribute("ambient", &ambientLight);
-			initSetting.graphics.ambientLight = ambientLight;				
+			initSetting.graphics.lighting.ambientLight = ambientLight;	
+
+			float sun_altitude = 45.0f;
+			elem->QueryFloatAttribute("sunAltitude", &sun_altitude);
+			initSetting.graphics.lighting.sun_altitude = sun_altitude;
+
+			float sun_azimuth = 30.0f;
+			elem->QueryFloatAttribute("sunAzimuth", &sun_azimuth);
+			initSetting.graphics.lighting.sun_azimuth = sun_azimuth;	
 		}
 		else if(elemName == "vertical")
 		{
@@ -940,13 +994,15 @@ void readGraphicsInput_helper(TiXmlElement* root){
 			initSetting.graphics.autoCam = autoCam;
 			if(!autoCam)
 			{ 
-				float x, y, z, pitch, yaw;
+				float fov, x, y, z, pitch, yaw;
+				elem->QueryFloatAttribute("FOV", &fov);
 				elem->QueryFloatAttribute("x", &x);
 				elem->QueryFloatAttribute("y", &y);
 				elem->QueryFloatAttribute("z", &z);
 				elem->QueryFloatAttribute("pitch", &pitch);
 				elem->QueryFloatAttribute("yaw", &yaw);
 
+				initSetting.graphics.camera.fov = fov;
 				initSetting.graphics.camera.x = x;
 				initSetting.graphics.camera.y = y;
 				initSetting.graphics.camera.z = z;
@@ -974,7 +1030,8 @@ bool readGraphicsInput()
 		readGraphicsInput_helper(root);
 
 		// Set autocolormap to true, so colormap values can't be set from graphics.init.
-		initSetting.graphics.autoColormap = true;
+		initSetting.graphics.surfaceShading.autoColormap = true;
+		initSetting.graphics.terrainTexture.autoColormap = true;
 		return 0;
 	}else{
 		MessageBox(0, doc.ErrorDesc(), "Error!", MB_OK);

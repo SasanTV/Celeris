@@ -63,6 +63,8 @@ public:
     void newTerrainSettings();  // call if any terrain settings change.
     void remesh(ResetType rt);   // call if mesh size changes.
 
+	void dumpBathymetryToFile(); // writes bathymetry to file.
+
 
     
 	// call following camera move or window resize  
@@ -70,6 +72,9 @@ public:
 
     // update the water
     void timestep();
+
+	// Deals with stuff that happens after a timestep, but needs to while software is on pause.
+	void afterTimestep();
 
     // set timestep to the given dt (multiplied by time_acceleration),
     // or to safety_factor * CFL-timestep,
@@ -226,7 +231,7 @@ private:
 	int F_G_star_old_index, F_G_star_old_old_index, F_G_star_scratch_index, F_G_star_predicted_index;
 
 
-    // triadiagonal textures:
+    // tridiagonal textures:
 	// ST_:For each level of reduction in Cyclic Reducation, one m_psTriDigTexture is used. 15 levels is too many! But let's stay on the safe side for now.
 
     Coercri::ComPtrWrapper<ID3D11Texture2D> st_psTriDigTexture_ABCx[ST_MAX_CR_MATRIX_NUM_X];

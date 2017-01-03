@@ -182,33 +182,75 @@ struct Soliton{
 };
 
 struct CameraSetting{
+	float fov;
 	float x, y, z;
 	float pitch, yaw;
-	CameraSetting() : x(0), y(0), z(0), pitch(0), yaw(0){}
+	CameraSetting() : fov(50), x(0), y(0), z(0), pitch(0), yaw(0){}
+};
+struct SurfaceShadingSetting{
+	ShadingOptions type;
+	int shadingVariable;
+	bool autoColormap;
+	float colormapMin;
+	float colormapMax;
+
+
+	SurfaceShadingSetting(){
+		type = PHOTOREALISTIC;
+		shadingVariable = 0; // 0 is eta
+		autoColormap = true;
+		colormapMin = -1.0f;	
+		colormapMax = 1.0f;	
+	}
+};
+
+struct TerrainTextureSetting{
+	int type;
+	bool autoColormap;
+	float colormapMin;
+	float colormapMax;
+
+	TerrainTextureSetting(){
+		type = 0; // 0 is SAND
+		autoColormap = true;
+		colormapMin = -1.0f;	
+		colormapMax = 1.0f;	
+	}
+};
+
+struct Lighting{
+	float ambientLight;
+	float sun_altitude; // in degrees
+	float sun_azimuth; // in degrees
+
+	Lighting(){
+		ambientLight = 1.0f;
+		sun_altitude = 45.0f;
+		sun_azimuth = 30.0f;
+	}
 };
 
 struct GraphicsSetting{
 	bool autoCam;
 
+	SurfaceShadingSetting surfaceShading;
+	TerrainTextureSetting terrainTexture;
+	int skyboxType;
+	
+	Lighting lighting;
+
 	bool gridOn;
 	float gridScale;
 	float verticalScale;
-
-	bool autoColormap;
-	float colormapMinMax;
-
-	float ambientLight;
 
 	float fresnelCoef,refractive_index, att_1, att_2;
 	CameraSetting camera;
 	GraphicsSetting (){
 		autoCam = true;
+		skyboxType = 0;
 		gridOn = true;
 		gridScale = 1.0f;
 		verticalScale = 1.0f;
-		autoColormap = true;
-		colormapMinMax = 1.0f;
-		ambientLight = 1.0f;
 		fresnelCoef = 0.5f; refractive_index = 0.5f; att_1 = 0.5f; att_2 = 0.5f;
 	}
 };
@@ -226,6 +268,7 @@ struct InitSetting {
 	std::string westIrrWaveFileName,  eastIrrWaveFileName;
 	std::string southIrrWaveFileName, northIrrWaveFileName;
 
+	bool rereadBathy;
 
 	std::string logPath;
 	
@@ -264,6 +307,8 @@ struct InitSetting {
 	Range logRange[MAX_NUM_RANGE];
 	int countOfRanges;
 
+	bool saveBathymetry;
+
 	static const int MAX_NUM_GAUGE = 1000;
 	std::string gaugesFilename;
 	Point logGauges[MAX_NUM_GAUGE];
@@ -282,6 +327,7 @@ struct InitSetting {
 		westIrrWaveFileName = "NA";  eastIrrWaveFileName = "NA";
 		southIrrWaveFileName = "NA"; northIrrWaveFileName = "NA";
 
+		rereadBathy = true;
 
 		logPath = "NA";
 		
@@ -315,6 +361,8 @@ struct InitSetting {
 		logStep = 100;
 		logType = "NA";
 		countOfRanges = 0;
+
+		saveBathymetry = false;
 
 		gaugesFilename = "NA";
 		int countOfGauges = 0;
