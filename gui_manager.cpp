@@ -215,6 +215,12 @@ void GuiManager::createGui()
 
 	pause_simulation_button.reset(new gcn::Button("Pause Simulation"));
     pause_simulation_button->addActionListener(this);
+
+	wave_1_button.reset(new gcn::Button("Wave 1")); wave_2_button.reset(new gcn::Button("Wave 2")); wave_3_button.reset(new gcn::Button("Wave 3"));
+	wave_4_button.reset(new gcn::Button("Wave 4")); wave_5_button.reset(new gcn::Button("Wave 5")); wave_6_button.reset(new gcn::Button("Wave 6"));
+    
+	wave_1_button->addActionListener(this); wave_2_button->addActionListener(this); wave_3_button->addActionListener(this);
+	wave_4_button->addActionListener(this); wave_5_button->addActionListener(this); wave_6_button->addActionListener(this);
     
 	boundary_set_button.reset(new gcn::Button("  Set  "));
 	boundary_set_button->addActionListener(this);
@@ -541,6 +547,22 @@ void GuiManager::createGui()
 void GuiManager::createBoundaryTab(gcn::Container *tab)
 {
 	tab->add(boundary_set_button.get(), 300, 110);
+	int y = 170;
+	int delta_y = 32;
+
+	int x = 20;
+	int delta_x = 120;
+
+	tab->add(wave_1_button.get(), x, y);
+	tab->add(wave_4_button.get(), x, y + delta_y);
+
+	x += delta_x;
+	tab->add(wave_2_button.get(), x, y);
+	tab->add(wave_5_button.get(), x, y + delta_y);
+
+	x += delta_x;
+	tab->add(wave_3_button.get(), x, y);
+	tab->add(wave_6_button.get(), x, y + delta_y);
 }
 
 void GuiManager::createInitConditionTab(gcn::Container *tab)
@@ -694,6 +716,24 @@ void GuiManager::action(const gcn::ActionEvent &e)
         resize();
     } else if (e.getSource() == reset_simulation_button.get()) {
         g_reset_type = R_MESH;
+	} else if (e.getSource() == wave_1_button.get()) {
+		initSetting.irrWave_setting_num = 1;
+		initSetting.irrWave_changed = true;
+	} else if (e.getSource() == wave_2_button.get()) {
+		initSetting.irrWave_setting_num = 2;
+		initSetting.irrWave_changed = true;
+	} else if (e.getSource() == wave_3_button.get()) {
+		initSetting.irrWave_setting_num = 3;
+		initSetting.irrWave_changed = true;
+	} else if (e.getSource() == wave_4_button.get()) {
+		initSetting.irrWave_setting_num = 4;
+		initSetting.irrWave_changed = true;
+	} else if (e.getSource() == wave_5_button.get()) {
+		initSetting.irrWave_setting_num = 5;
+		initSetting.irrWave_changed = true;
+	} else if (e.getSource() == wave_6_button.get()) {
+		initSetting.irrWave_setting_num = 6;
+		initSetting.irrWave_changed = true;
 	} else if (e.getSource() == reset_bathymetry_button.get()) {
         g_reset_type = R_MESH;
 		initSetting.rereadBathy = true;

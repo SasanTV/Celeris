@@ -25,8 +25,8 @@
 	<northBoundary type = "Solid"  seaLevel = 0 widthNum = 2></northBoundary>	
 	
 	<!-- Settings for Logging Data-->
-	<logData doLog = false logStep = 20>
-		<logPath>log</logPath>
+	<logData doLog = true logStep = 1>
+		<logPath></logPath>
 
 		<range filename = "island">
 			<bottomLeft x = 228 y = 228></bottomLeft>

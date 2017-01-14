@@ -616,16 +616,35 @@ namespace {
 	}
 	void st_DumpToFile(ID3D11DeviceContext *context, ID3D11Texture2D *staging, ID3D11Texture2D *tex, int nx, int ny)
 	{ // Can get nx and ny using GetTextureSize(...)
-		
+	
+
 		context->CopyResource(staging, tex);
 		MapTexture m(*context, *staging);
 
 		for (int r = 0; r < initSetting.countOfRanges; ++r){
-			std::string fileName = initSetting.logPath + "/" + initSetting.logRange[r].name +".txt";	
+			static unsigned int fileNum_int = 0;
+			std::ostringstream fileNum_stream;
+			fileNum_stream << fileNum_int;
+			std::string fileNum_string = fileNum_int == 0? "" : "-" + fileNum_stream.str();
+			std::string fileName = initSetting.logPath + "/" + initSetting.logRange[r].name + ".txt";	
 			std::ofstream myfile;
 			if (!myfile.is_open()){
 				myfile.open (fileName.c_str(),std::ios::out | std::ios::app);
 			}
+			/*
+			int fileSize = myfile.tellp();
+			if (fileSize > 10){
+				myfile.close();
+				++fileNum_int;
+				fileNum_stream << fileNum_int;
+				std::string fileNum_string = "-" + fileNum_stream.str();
+				std::string fileName = initSetting.logPath + "/" + initSetting.logRange[r].name + fileNum_string + ".txt";	
+				if (!myfile.is_open()){
+					myfile.open (fileName.c_str(),std::ios::out | std::ios::app);
+				}
+			}
+			*/
+
 			for (int j = initSetting.logRange[r].bottomLeft.y; j <= initSetting.logRange[r].topRight.y; ++j) {
 				for (int i = initSetting.logRange[r].bottomLeft.x; i <= initSetting.logRange[r].topRight.x; ++i) {
 						const char *q = reinterpret_cast<const char*>(m.msr.pData) + j * m.msr.RowPitch;
@@ -636,7 +655,7 @@ namespace {
 			}
 		}
 		
-		std::string fileName = initSetting.logPath + "/" + initSetting.gaugesFilename +".txt";	
+		std::string fileName = initSetting.logPath + "/" + initSetting.gaugesFilename + ".txt";	
 		std::ofstream myfile;
 		if (!myfile.is_open()){
 			myfile.open (fileName.c_str(),std::ios::out | std::ios::app);
@@ -648,6 +667,7 @@ namespace {
 			const float *p = reinterpret_cast<const float*>(q) + i * 4;
 			myfile << i << "\t" << j << "\t" << p[0] << "\t" << p[1] << "\t" << p[2] << "\t" << p[3] << "\n";
 		}
+
 	}
 
 
@@ -1481,6 +1501,11 @@ void ShallowWaterEngine::afterTimestep()
 	if (initSetting.saveBathymetry){
 		dumpBathymetryToFile();
 		initSetting.saveBathymetry = false;
+	}
+
+	if(initSetting.irrWave_changed){
+		fillIrregularWavesDataConstantBuffer();
+		initSetting.irrWave_changed = false;
 	}
 }
 void ShallowWaterEngine::resetTimestep(float realworld_dt, float elapsed_time)
@@ -3393,9 +3418,9 @@ void skipCommentsInFileStream (std::ifstream &in){
 void ShallowWaterEngine::fillIrregularWavesDataConstantBuffer ()
 {
 	IrregularWavesDataConstBuffer irr_cBuffer;
-
+	const int w_num = std::min(initSetting.irrWave_setting_num, initSetting.NUM_IRR_WAVES) - 1;
 	if (initSetting.westBoundary.type == "IrregularWaves"){
-		std::ifstream in ((initSetting.westIrrWaveFileName).c_str());
+		std::ifstream in ((initSetting.westIrrWaveFileName[w_num]).c_str());
 		irr_cBuffer.numberOfWavesWest = getNumberOfWavesFromFileStream (in);
 		int count = 0;
 		while (in && count <= irr_cBuffer.numberOfWavesWest) {
@@ -3405,7 +3430,7 @@ void ShallowWaterEngine::fillIrregularWavesDataConstantBuffer ()
 	}
 
 	if (initSetting.eastBoundary.type == "IrregularWaves"){
-		std::ifstream in ((initSetting.eastIrrWaveFileName).c_str());
+		std::ifstream in ((initSetting.eastIrrWaveFileName[w_num]).c_str());
 		irr_cBuffer.numberOfWavesEast = getNumberOfWavesFromFileStream (in);
 		int count = 0;
 		while (in && count <= irr_cBuffer.numberOfWavesEast) {
@@ -3415,7 +3440,7 @@ void ShallowWaterEngine::fillIrregularWavesDataConstantBuffer ()
 	}
 
 	if (initSetting.southBoundary.type == "IrregularWaves"){
-		std::ifstream in ((initSetting.southIrrWaveFileName).c_str());
+		std::ifstream in ((initSetting.southIrrWaveFileName[w_num]).c_str());
 		irr_cBuffer.numberOfWavesSouth = getNumberOfWavesFromFileStream (in);
 		int count = 0;
 		while (in && count <= irr_cBuffer.numberOfWavesSouth) {
@@ -3425,7 +3450,7 @@ void ShallowWaterEngine::fillIrregularWavesDataConstantBuffer ()
 	}
 
 	if (initSetting.northBoundary.type == "IrregularWaves"){
-		std::ifstream in ((initSetting.northIrrWaveFileName).c_str());
+		std::ifstream in ((initSetting.northIrrWaveFileName[w_num]).c_str());
 		irr_cBuffer.numberOfWavesNorth = getNumberOfWavesFromFileStream (in);
 		int count = 0;
 		while (in && count <= irr_cBuffer.numberOfWavesNorth) {

@@ -265,8 +265,12 @@ struct InitSetting {
 	std::string initCMLName;
 	std::string initWFileName;
 	std::string bathymetryFileName;
-	std::string westIrrWaveFileName,  eastIrrWaveFileName;
-	std::string southIrrWaveFileName, northIrrWaveFileName;
+
+	static const int NUM_IRR_WAVES = 6;
+	int irrWave_setting_num;
+	bool irrWave_changed;
+	std::string westIrrWaveFileName[NUM_IRR_WAVES],  eastIrrWaveFileName[NUM_IRR_WAVES];
+	std::string southIrrWaveFileName[NUM_IRR_WAVES], northIrrWaveFileName[NUM_IRR_WAVES];
 
 	bool rereadBathy;
 
@@ -318,14 +322,19 @@ struct InitSetting {
 
 	InitSetting(){
 		project_name = "NA";
-
+		irrWave_setting_num = 1;
+		irrWave_changed = false;
 		//Paths
 		exePath = "NA";
 		initCMLName = "NA";
 		initWFileName = "NA";
 		bathymetryFileName = "NA";
-		westIrrWaveFileName = "NA";  eastIrrWaveFileName = "NA";
-		southIrrWaveFileName = "NA"; northIrrWaveFileName = "NA";
+
+		for (int i = 0; i < NUM_IRR_WAVES; ++i){
+			westIrrWaveFileName[i] = "NA"; eastIrrWaveFileName[i] = "NA";
+			southIrrWaveFileName[i] = "NA"; northIrrWaveFileName[i] = "NA";
+
+		} 
 
 		rereadBathy = true;
 

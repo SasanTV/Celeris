@@ -20,15 +20,19 @@
 	<!-- Settings for Boundaries-->
 	<westBoundary  type = "IrregularWaves" seaLevel = 0 widthNum = 2>
 		<filePath> irrWavesWest.txt </filePath>
+		<filePath> irrWavesEast.txt </filePath>
 	</westBoundary>
 	<eastBoundary  type = "IrregularWaves" seaLevel = 0 widthNum = 2>
 			<filePath> irrWavesEast.txt </filePath>
+			<filePath> irrWavesWest.txt </filePath>
 	</eastBoundary>	
 	<southBoundary type = "IrregularWaves"  seaLevel = 0 widthNum = 2>
-				<filePath> irrWavesSouth.txt </filePath>
+			<filePath> irrWavesSouth.txt </filePath>
+			<filePath> irrWavesNorth.txt </filePath>
 	</southBoundary>	
 	<northBoundary type = "IrregularWaves"  seaLevel = 0 widthNum = 2>
-				<filePath> irrWavesNorth.txt </filePath>
+			<filePath> irrWavesNorth.txt </filePath>
+			<filePath> irrWavesSouth.txt </filePath>
 	</northBoundary>	
 	
 	<!-- Settings for Logging Data-->

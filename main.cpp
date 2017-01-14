@@ -318,7 +318,7 @@ int real_main()
     std::auto_ptr<MyListener> listener;
     boost::shared_ptr<Coercri::DX11Window> window = 
         boost::static_pointer_cast<Coercri::DX11Window>(
-            gfx_driver->createWindow(g_width + GUI_WIDTH, g_height, true, false, initSetting.project_name + " - Celeris Advent (v1.2.3)"));
+            gfx_driver->createWindow(g_width + GUI_WIDTH, g_height, true, false, initSetting.project_name + " - Celeris Navy (v1.2.3)"));
     GuiManager gui_manager(window, timer, GUI_WIDTH);
 	
     // Create the ShallowWaterEngine
@@ -648,14 +648,25 @@ bool readInputCML()
 					elem->FirstChildElement("sineWave")->QueryFloatAttribute("theta", &tempFloat);
 					initSetting.westBoundary.sineWaveSetting.theta = PI/180.0 * tempFloat;
 				} else if (initSetting.westBoundary.type == "IrregularWaves") {
-					std::string tempString = elem->FirstChildElement("filePath")->FirstChild()->ToText()->Value();
-					const char *pp;
-					pp =  tempString.c_str();
-					if (PathIsRelative(pp)){
-						initSetting.westIrrWaveFileName = extractPath(initSetting.initCMLName) + "/" + tempString;
-					} else {
-						initSetting.westIrrWaveFileName = tempString;
+					int count = 0;
+					for(TiXmlElement* elem2 = elem->FirstChildElement(); elem2 != NULL && count < initSetting.NUM_IRR_WAVES; elem2 = elem2->NextSiblingElement()){
+						std::string elem2Name = elem2->Value();
+						if(elem2Name == "filePath"){
+							std::string tempString = elem2->FirstChild()->ToText()->Value();
+							const char *pp;
+							pp =  tempString.c_str();
+							if (PathIsRelative(pp)){
+								initSetting.westIrrWaveFileName[count] = extractPath(initSetting.initCMLName) + "/" + tempString;
+							} else {
+								initSetting.westIrrWaveFileName[count] = tempString;
+							}
+						}
+						++count;
+						if (count >= initSetting.NUM_IRR_WAVES){
+							break;
+						}
 					}
+
 				} else if (initSetting.westBoundary.type == "UniformTimeSeries") {
 					std::string tempString = elem->FirstChildElement("filePath")->FirstChild()->ToText()->Value();
 					const char *pp;
@@ -691,13 +702,20 @@ bool readInputCML()
 					elem->FirstChildElement("sineWave")->QueryFloatAttribute("theta", &tempFloat);
 					initSetting.eastBoundary.sineWaveSetting.theta = PI/180.0 * tempFloat;
 				} else if (initSetting.eastBoundary.type == "IrregularWaves") {
-					std::string tempString = elem->FirstChildElement("filePath")->FirstChild()->ToText()->Value();
-					const char *pp;
-					pp =  tempString.c_str();
-					if (PathIsRelative(pp)){
-						initSetting.eastIrrWaveFileName = extractPath(initSetting.initCMLName) + "/" + tempString;
-					} else {
-						initSetting.eastIrrWaveFileName = tempString;
+					int count = 0;
+					for(TiXmlElement* elem2 = elem->FirstChildElement(); elem2 != NULL && count < initSetting.NUM_IRR_WAVES; elem2 = elem2->NextSiblingElement()){
+						std::string elem2Name = elem2->Value();
+						if(elem2Name == "filePath"){
+							std::string tempString = elem2->FirstChild()->ToText()->Value();
+							const char *pp;
+							pp =  tempString.c_str();
+							if (PathIsRelative(pp)){
+								initSetting.eastIrrWaveFileName[count] = extractPath(initSetting.initCMLName) + "/" + tempString;
+							} else {
+								initSetting.eastIrrWaveFileName[count] = tempString;
+							}
+						}
+						++count;
 					}
 				} else if (initSetting.eastBoundary.type == "UniformTimeSeries") {
 					std::string tempString = elem->FirstChildElement("filePath")->FirstChild()->ToText()->Value();
@@ -733,13 +751,20 @@ bool readInputCML()
 					elem->FirstChildElement("sineWave")->QueryFloatAttribute("theta", &tempFloat);
 					initSetting.northBoundary.sineWaveSetting.theta = PI/180.0 * tempFloat;
 				} else if (initSetting.northBoundary.type == "IrregularWaves") {
-					std::string tempString = elem->FirstChildElement("filePath")->FirstChild()->ToText()->Value();
-					const char *pp;
-					pp =  tempString.c_str();
-					if (PathIsRelative(pp)){
-						initSetting.northIrrWaveFileName = extractPath(initSetting.initCMLName) + "/" + tempString;
-					} else {
-						initSetting.northIrrWaveFileName = tempString;
+					int count = 0;
+					for(TiXmlElement* elem2 = elem->FirstChildElement(); elem2 != NULL && count < initSetting.NUM_IRR_WAVES; elem2 = elem2->NextSiblingElement()){
+						std::string elem2Name = elem2->Value();
+						if(elem2Name == "filePath"){
+							std::string tempString = elem2->FirstChild()->ToText()->Value();
+							const char *pp;
+							pp =  tempString.c_str();
+							if (PathIsRelative(pp)){
+								initSetting.northIrrWaveFileName [count] = extractPath(initSetting.initCMLName) + "/" + tempString;
+							} else {
+								initSetting.northIrrWaveFileName [count] = tempString;
+							}
+						}
+						++count;
 					}
 				} else if (initSetting.northBoundary.type == "UniformTimeSeries") {
 					std::string tempString = elem->FirstChildElement("filePath")->FirstChild()->ToText()->Value();
@@ -774,13 +799,20 @@ bool readInputCML()
 					elem->FirstChildElement("sineWave")->QueryFloatAttribute("theta", &tempFloat);
 					initSetting.southBoundary.sineWaveSetting.theta = PI/180.0 * tempFloat;
 				} else if (initSetting.southBoundary.type == "IrregularWaves") {
-					std::string tempString = elem->FirstChildElement("filePath")->FirstChild()->ToText()->Value();
-					const char *pp;
-					pp =  tempString.c_str();
-					if (PathIsRelative(pp)){
-						initSetting.southIrrWaveFileName = extractPath(initSetting.initCMLName) + "/" + tempString;
-					} else {
-						initSetting.southIrrWaveFileName = tempString;
+					int count = 0;
+					for(TiXmlElement* elem2 = elem->FirstChildElement(); elem2 != NULL && count < initSetting.NUM_IRR_WAVES; elem2 = elem2->NextSiblingElement()){
+						std::string elem2Name = elem2->Value();
+						if(elem2Name == "filePath"){
+							std::string tempString = elem2->FirstChild()->ToText()->Value();
+							const char *pp;
+							pp =  tempString.c_str();
+							if (PathIsRelative(pp)){
+								initSetting.southIrrWaveFileName [count] = extractPath(initSetting.initCMLName) + "/" + tempString;
+							} else {
+								initSetting.southIrrWaveFileName [count] = tempString;
+							}
+						}
+						++count;
 					}
 				} else if (initSetting.southBoundary.type == "UniformTimeSeries") {
 					std::string tempString = elem->FirstChildElement("filePath")->FirstChild()->ToText()->Value();
