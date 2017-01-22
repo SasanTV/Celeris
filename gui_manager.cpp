@@ -705,6 +705,7 @@ void GuiManager::action(const gcn::ActionEvent &e)
 	} else if (e.getSource() == init_condition_set_button.get()) {
         init_condition_set_button_do();	
 	} else if (e.getSource() == mesh_size_set_button.get()) {
+		initSetting.rereadBathy = true;
         mesh_size_set_button_do();	
 	} else if (e.getSource() == boundary_set_button.get()) {
 		boundary_set_button_do();	
@@ -835,7 +836,6 @@ void GuiManager::boundary_set_button_do()
 
 void GuiManager::mesh_size_set_button_do(){
 
-	float H, theta, xcenter, ycenter;
 	const float W = GetSetting("valley_width");
 	const float L = GetSetting("valley_length");
 	float length_in = W + L; // W + L is just a large enough number.
@@ -848,7 +848,7 @@ void GuiManager::mesh_size_set_button_do(){
 			if		 (g_settings[j].name == "mesh_size_x"){
 				SetSettingD("mesh_size_x", std::atof(tempField->getText().c_str()));
 				g_reset_type = std::max(g_reset_type, g_settings[j].reset_type);
-			} else if(g_settings[j].name == "mesh_size_y"){ // Note the white space at the end.
+			} else if(g_settings[j].name == "mesh_size_y"){ 
 				SetSettingD("mesh_size_y", std::atof(tempField->getText().c_str()));
 				g_reset_type = std::max(g_reset_type, g_settings[j].reset_type);
 			}

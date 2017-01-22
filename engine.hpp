@@ -197,7 +197,7 @@ private:
     // [3] = V
     // [4] = XFLUX
     // [5] = YFLUX
-	// [6] = normals (?)
+	// [6] = normals 
 	// [7] = old_gradients
 	// [8] = old_old_gradients
 	// [9] = scratch_gradients

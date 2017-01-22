@@ -141,6 +141,8 @@ namespace {
 
     // Const buffer for water/terrain rendering
     struct MyConstBuffer {
+
+
         XMMATRIX tex_to_clip;   // transforms (tex_x, tex_y, world_z, 1) into clip space 
         XMFLOAT3 light_dir;         // in world space 
         float ambient;
@@ -154,9 +156,7 @@ namespace {
         float world_mult_x, world_mult_y, world_trans_x, world_trans_y;
         float world_to_grass_tex_x, world_to_grass_tex_y;
         float grass_tex_of_origin_x, grass_tex_of_origin_y;
-
 		
-
         float fresnel_coeff, fresnel_exponent;
         float specular_intensity, specular_exponent;
         float refractive_index;
@@ -164,6 +164,7 @@ namespace {
         
         int nx_plus_1, ny_plus_1;
 		//float dx, dy;
+
 
         float deep_r, deep_g, deep_b;
 
@@ -180,6 +181,8 @@ namespace {
 		float terrain_colormap_max;
 
 		int isGridOn;
+
+		float sqrt_sqrt_epsilon;
         
     };    
 
@@ -3584,6 +3587,7 @@ void ShallowWaterEngine::fillConstantBuffers()
 
     cb.nx_plus_1 = nx + 1;
     cb.ny_plus_1 = ny + 1;
+	cb.sqrt_sqrt_epsilon = sqrt(sqrt(abs(initSetting.epsilon)));
 /*
 	cb.dx =  W / (nx - 1);
     cb.dy =  L / (ny - 1);

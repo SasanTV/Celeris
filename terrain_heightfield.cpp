@@ -299,7 +299,7 @@ void UpdateTerrainHeightfield()
     // This prevents water "showing through" in steep areas.
     for (int j = 0; j < ny + 4; ++j) {
         for (int i = 0; i < nx + 4; ++i) {
-			g_terrain_heightfield[j * pitch + i].B = g_bottom[j * pitch + i].BA + sqrt(sqrt(initSetting.epsilon)); // here I add epsilon, to avoid showing water through land
+			g_terrain_heightfield[j * pitch + i].B = g_bottom[j * pitch + i].BA; //+ sqrt(sqrt(initSetting.epsilon)); // here I add epsilon, to avoid showing water through land
 			g_terrain_heightfield[j * pitch + i].dBdx = (g_bottom[j * pitch + i].BX - g_bottom[j * pitch + i].BA)/(2*dx);
 			g_terrain_heightfield[j * pitch + i].dBdy = (g_bottom[j * pitch + i].BY - g_bottom[j * pitch + i].BA)/(2*dy);
         }
