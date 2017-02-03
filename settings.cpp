@@ -190,7 +190,7 @@ Setting g_settings[] =
         { "so4", "s^-1", S_SLIDER, R_NONE, 0, 10 },
         { "" },
 */
-        // BOUNDARY TAB
+        // INIT CONDITIONS TAB
 		{ "Init.Cond.", "", S_NEW_TAB },
 		{ "wave height", "", S_TEXTFIELD, R_NONE, 10, 1200, 0},
 		{ "wave direction ", "", S_TEXTFIELD, R_NONE, 10, 1200, 0}, // note wave direction has a white space at the end to distinguish it from the other "wave direction".
@@ -229,6 +229,9 @@ Setting g_settings[] =
 		{""},
 		{ "Grid", "", S_CHECKBOX, R_NONE, 0, 1 },
 		{ "Grid Scale", "", S_SLIDER, R_NONE, 0.5, 20 },
+		{""},
+		{ "Inundated Area", "", S_CHECKBOX, R_NONE, 0, 1 },
+		{ "Flow Depth", "", S_SLIDER, R_NONE, 0.0001, 0.3 },
 		{""},
 		{ "fov", "deg", S_SLIDER, R_NONE, 1, 150 },
         { "sun_alt", "deg", S_SLIDER, R_NONE, 0, 90 },

@@ -889,7 +889,7 @@ void GuiManager::resetColormapSliders()
 {
     for (int i = 0; i < int(sliders.size()); ++i) {
         Setting &s = g_settings[i];
-		if (s.type == S_SLIDER && (s.name == "Colormap Max" || s.name == "Colormap Min" || s.name == "Colormap Min " || s.name == "Colormap Max ")) {
+		if (s.type == S_SLIDER && (s.name == "Colormap Max" || s.name == "Colormap Min" || s.name == "Colormap Min " || s.name == "Colormap Max " || s.name == "Flow Depth")) {
 			sliders[i]->setScale(RealToSlider(s, s.min),RealToSlider(s, s.max));	
 			sliders[i]->setStepLength((s.max-s.min)/20.0f);
 			sliders[i]->setValue(RealToSlider(s, s.value));

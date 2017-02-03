@@ -189,6 +189,10 @@ private:
     Coercri::ComPtrWrapper<ID3D11ShaderResourceView> m_psTerrainTextureView;
     Coercri::ComPtrWrapper<ID3D11Texture2D> m_psBottomTexture;
     Coercri::ComPtrWrapper<ID3D11ShaderResourceView> m_psBottomTextureView;
+	Coercri::ComPtrWrapper<ID3D11Texture2D> m_psInundationTexture;
+    Coercri::ComPtrWrapper<ID3D11ShaderResourceView> m_psInundationTextureView;
+    Coercri::ComPtrWrapper<ID3D11RenderTargetView> m_psInundationRenderTargetView;
+	
 
     // simulation textures:
     // [sim_idx] = state   0 or 1

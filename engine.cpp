@@ -183,7 +183,7 @@ namespace {
 		int isGridOn;
 
 		float sqrt_sqrt_epsilon;
-        
+		float drylandDepthOfInundation;
     };    
 
     // Const buffer used for the simulation
@@ -849,8 +849,10 @@ void ShallowWaterEngine::timestep()
     ID3D11ShaderResourceView * v_tex = m_psSimTextureView[3].get();
     ID3D11ShaderResourceView * xflux_tex = m_psSimTextureView[4].get();
     ID3D11ShaderResourceView * yflux_tex = m_psSimTextureView[5].get();
-
-    ID3D11RenderTargetView * new_state_or_h_target = m_psSimRenderTargetView[1 - sim_idx].get();
+	ID3D11ShaderResourceView * normal_tex = m_psSimTextureView[6].get();     // {nX, nY, nZ, wasInundated}
+	ID3D11ShaderResourceView * inundation_tex = m_psInundationTextureView.get();
+    
+	ID3D11RenderTargetView * new_state_or_h_target = m_psSimRenderTargetView[1 - sim_idx].get();
 	ID3D11RenderTargetView * old_state_or_h_target = m_psSimRenderTargetView[sim_idx].get();
     ID3D11RenderTargetView * old_gradients_target = m_psSimRenderTargetView[old_index].get();
 	ID3D11RenderTargetView * old_old_gradients_target = m_psSimRenderTargetView[old_old_index].get();
@@ -866,7 +868,8 @@ void ShallowWaterEngine::timestep()
     ID3D11RenderTargetView * xflux_target = m_psSimRenderTargetView[4].get();
     ID3D11RenderTargetView * yflux_target = m_psSimRenderTargetView[5].get();
     ID3D11RenderTargetView * normal_target = m_psSimRenderTargetView[6].get();
-
+	ID3D11RenderTargetView * inundation_target = m_psInundationRenderTargetView.get();
+		              
 
     // Common Settings
     
@@ -916,7 +919,8 @@ void ShallowWaterEngine::timestep()
         context->PSSetShader(m_psSimPixelShader[0].get(), 0, 0);
         context->PSSetShaderResources(0, 1, &old_state_tex);
         context->PSSetShaderResources(1, 1, &bottom_tex);
-        
+		context->PSSetShaderResources(3, 1, &inundation_tex);
+	        
         context->Draw(6, 0);    
 
         bootstrap_needed = false;
@@ -936,14 +940,17 @@ void ShallowWaterEngine::timestep()
 	
     vert_buf = m_psSimVertexBuffer10.get();
     context->IASetVertexBuffers(0, 1, &vert_buf, &stride, &offset);
+	
+	context->PSSetShaderResources(0, 1, &new_state_or_h_tex);
+    context->PSSetShaderResources(1, 1, &u_tex);
+    context->PSSetShaderResources(2, 1, &v_tex);
+	context->PSSetShaderResources(3, 1, &normal_tex);
 
-    ID3D11RenderTargetView * p2_tgt[] = {xflux_target, yflux_target, 0, 0};
+    ID3D11RenderTargetView * p2_tgt[] = {xflux_target, yflux_target, inundation_target, 0};
     context->OMSetRenderTargets(4, &p2_tgt[0], 0);
 
     context->PSSetShader(m_psSimPixelShader[1].get(), 0, 0);
-    context->PSSetShaderResources(0, 1, &new_state_or_h_tex);
-    context->PSSetShaderResources(1, 1, &u_tex);
-    context->PSSetShaderResources(2, 1, &v_tex);
+
 
     context->Draw(6, 0);
 
@@ -1414,6 +1421,7 @@ void ShallowWaterEngine::timestep()
     context->PSSetShader(m_psSimPixelShader[0].get(), 0, 0);
     context->PSSetShaderResources(0, 1, &new_state_or_h_tex);
     context->PSSetShaderResources(1, 1, &bottom_tex);
+	context->PSSetShaderResources(3, 1, &inundation_tex);
     context->Draw(6, 0);
 
 
@@ -1702,7 +1710,17 @@ void ShallowWaterEngine::resetTimestep(float realworld_dt, float elapsed_time)
 		
 		SetSetting("Colormap Max ", initSetting.max_positive_bathy);
 		SetSetting("Colormap Min ", initSetting.min_negative_bathy);
-		
+
+		SetSettingMax("Flow Depth",  initSetting.graphics.surfaceShading.autoInundationDepth ?
+										10.0f * sqrt(sqrt(initSetting.epsilon)):
+										initSetting.graphics.surfaceShading.maxInundation);
+		SetSettingMin("Flow Depth", 0.5f * sqrt(sqrt(initSetting.epsilon)));
+
+
+		SetSetting("Flow Depth", initSetting.graphics.surfaceShading.autoInundationDepth ? 
+										sqrt(sqrt(initSetting.epsilon)) :
+										initSetting.graphics.surfaceShading.drylandDepthOfInundation);
+
 		if(max_depth != 0) colormap_initialized = true;
 	}
 
@@ -2135,9 +2153,10 @@ void ShallowWaterEngine::render(ID3D11RenderTargetView *render_target_view)
 
     ID3D11ShaderResourceView * heightfield_tex = m_psTerrainTextureView.get();
     ID3D11ShaderResourceView * water_tex = m_psSimTextureView[sim_idx].get();   // {w, hu, hv, unused}
-    ID3D11ShaderResourceView * normal_tex = m_psSimTextureView[6].get();     // {nX, nY, nZ, unused}
+    ID3D11ShaderResourceView * normal_tex = m_psSimTextureView[6].get();     // {nX, nY, nZ, wasInundated}
     ID3D11ShaderResourceView * skybox_tex = m_psSkyboxView.get();
     ID3D11ShaderResourceView * grass_tex = m_psGrassTextureView.get();
+	ID3D11ShaderResourceView * inundation_tex = m_psInundationTextureView.get();
 	ID3D11ShaderResourceView * grid_tex = m_psGridTextureView.get();
 	ID3D11ShaderResourceView * colormap_tex = m_psColormapTextureView.get();
     ID3D11SamplerState * linear_sampler = m_psLinearSamplerState.get();
@@ -2159,6 +2178,7 @@ void ShallowWaterEngine::render(ID3D11RenderTargetView *render_target_view)
     context->VSSetShaderResources(0, 1, &heightfield_tex);
     context->VSSetShaderResources(1, 1, &water_tex);
     context->VSSetShaderResources(2, 1, &normal_tex);
+	context->VSSetShaderResources(3, 1, &inundation_tex);
     
     ID3D11Buffer * cst_buf = m_psConstantBuffer.get();
     context->VSSetConstantBuffers(0, 1, &cst_buf);
@@ -2180,6 +2200,7 @@ void ShallowWaterEngine::render(ID3D11RenderTargetView *render_target_view)
     context->PSSetShaderResources(1, 1, &skybox_tex);
 	context->PSSetShaderResources(2, 1, &colormap_tex);
 	context->PSSetShaderResources(3, 1, &grid_tex);
+	
 
     context->PSSetConstantBuffers(0, 1, &cst_buf);
     context->PSSetSamplers(0, 1, &linear_sampler);
@@ -2447,6 +2468,16 @@ void ShallowWaterEngine::createTerrainTexture()
                   m_psBottomTexture,
                   &m_psBottomTextureView,
                   0);
+
+    CreateTexture(device,
+				  GetIntSetting("mesh_size_x") + 4,
+				  GetIntSetting("mesh_size_y") + 4,
+				  0,  // initial data
+				  DXGI_FORMAT_R32_FLOAT,
+				  false,  // staging
+				  m_psInundationTexture,
+				  &m_psInundationTextureView,
+				  &m_psInundationRenderTargetView);
 }
 
 
@@ -3191,7 +3222,9 @@ void ShallowWaterEngine::fillTerrainTexture()
                                    &g_bottom[0],
                                    (nx+4) * 12,
                                    0); // slab pitch
-        
+
+		context->CopyResource(m_psInundationTexture.get(), 0); 
+
         // Loop through and change h values back into w values
         for (int j = 0; j < ny+4; ++j) {
             char * row_ptr = reinterpret_cast<char*>(m.msr.pData) + j * m.msr.RowPitch;
@@ -3237,6 +3270,8 @@ void ShallowWaterEngine::fillTerrainTextureLite()
                                &g_bottom[0],
                                (nx+4) * 12,
                                0); // slab pitch
+
+		context->CopyResource(m_psInundationTexture.get(), 0); 
     
     // need to re-bootstrap
     bootstrap_needed = true;
@@ -3588,6 +3623,7 @@ void ShallowWaterEngine::fillConstantBuffers()
     cb.nx_plus_1 = nx + 1;
     cb.ny_plus_1 = ny + 1;
 	cb.sqrt_sqrt_epsilon = sqrt(sqrt(abs(initSetting.epsilon)));
+	cb.drylandDepthOfInundation =  GetSetting("Inundated Area")? GetSetting("Flow Depth") : 0;
 /*
 	cb.dx =  W / (nx - 1);
     cb.dy =  L / (ny - 1);
@@ -3709,7 +3745,6 @@ void ShallowWaterEngine::fillConstantBuffers()
 	sb.friction = GetSetting("friction");
 	sb.isManning= initSetting.isManning;
 	sb.seaLevel= initSetting.stillWaterElevation;
-
     // Now write it to the constant buffer
     context->UpdateSubresource(m_psSimConstantBuffer.get(),
                                0,  // subresource

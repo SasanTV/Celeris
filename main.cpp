@@ -918,12 +918,24 @@ void readGraphicsInput_helper(TiXmlElement* root){
 
 					elem2->QueryFloatAttribute("max", &colormapMax);
 					initSetting.graphics.surfaceShading.colormapMax = colormapMax;						
-				}
-				else if (elem2Name == "shadingVariable"){
+				} else if (elem2Name == "shadingVariable"){
 					int value = 0;
 
 					elem2->QueryIntAttribute("value", &value);
 					initSetting.graphics.surfaceShading.shadingVariable = value;
+				} else if (elem2Name == "drylandDepthOfInundation"){
+					
+					bool autoInudationDepth = true;
+					elem2->QueryBoolAttribute("auto", &autoInudationDepth);
+					initSetting.graphics.surfaceShading.autoInundationDepth = autoInudationDepth;
+					float value = 0.01;
+					float maxInundation = 1;
+
+					elem2->QueryFloatAttribute("value", &value);
+					initSetting.graphics.surfaceShading.drylandDepthOfInundation = value;
+
+					elem2->QueryFloatAttribute("max", &maxInundation);
+					initSetting.graphics.surfaceShading.maxInundation = maxInundation;
 				}
 			}
 		}

@@ -16,7 +16,7 @@
 	
 	
 	<!-- Settings for Initial Condition -->
-	<!--solitaryWave H = 0.058 theta = 0 xc = 5 yc = 15></solitaryWave-->
+	<solitaryWave H = 0.058 theta = 0 xc = 5 yc = 15></solitaryWave>
 	
 	<!-- Settings for Boundaries-->
 	<westBoundary  type = "Sponge" seaLevel = 0 widthNum = 20></westBoundary>
@@ -25,8 +25,8 @@
 	<northBoundary type = "Solid"  seaLevel = 0 widthNum = 2></northBoundary>	
 	
 	<!-- Settings for Logging Data-->
-	<logData doLog = false logStep = 20>
-		<logPath>log</logPath>
+	<logData doLog = false logStep = 1>
+		<logPath></logPath>
 
 		<range filename = "island">
 			<bottomLeft x = 228 y = 228></bottomLeft>
@@ -49,12 +49,13 @@
 		<vertical scale = 1></vertical>
 		<!-- Photorealistic = 0, PARULA = 1, JET = 2 -->
 		<surfaceShading type = 2>
-			
 			<!-- Eta = 0, U = 1, V = 2, |U+V| = 3, Vorticity = 4 -->
 			<shadingVariable value =  4></shadingVariable>
 
 			<!-- -minMaxValue < value < +minMaxValue -->
-			<colormap auto = false min = -1 max = 3></colormap>
+			<colormap auto = true min = -1 max = 3></colormap>
+			
+			<drylandDepthOfInundation auto = true value = 0.1 max = 1></drylandDepthOfInundation>
 		</surfaceShading>
 		
 		<!-- Textures = 0 to 5, COLORMAP = 6, CONTOURS = 7 -->

@@ -16,7 +16,6 @@ Misc/
 # Build results
 [Dd]ebug/
 [Dd]ebugPublic/
-[Rr]elease/
 [Rr]eleases/
 x64/
 x86/
@@ -51,7 +50,9 @@ artifacts/
 *_p.c
 *_i.h
 *.ilk
+*.idb
 *.meta
+*.manifest
 *.obj
 *.pch
 *.pdb
@@ -71,6 +72,8 @@ artifacts/
 *.pidb
 *.svclog
 *.scc
+*.exe
+*.lib
 
 # Chutzpah Test files
 _Chutzpah*
