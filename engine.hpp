@@ -189,6 +189,10 @@ private:
     Coercri::ComPtrWrapper<ID3D11ShaderResourceView> m_psTerrainTextureView;
     Coercri::ComPtrWrapper<ID3D11Texture2D> m_psBottomTexture;
     Coercri::ComPtrWrapper<ID3D11ShaderResourceView> m_psBottomTextureView;
+	Coercri::ComPtrWrapper<ID3D11Texture2D> m_psInundationTexture;
+    Coercri::ComPtrWrapper<ID3D11ShaderResourceView> m_psInundationTextureView;
+    Coercri::ComPtrWrapper<ID3D11RenderTargetView> m_psInundationRenderTargetView;
+	
 
     // simulation textures:
     // [sim_idx] = state   0 or 1
@@ -197,7 +201,7 @@ private:
     // [3] = V
     // [4] = XFLUX
     // [5] = YFLUX
-	// [6] = normals (?)
+	// [6] = normals 
 	// [7] = old_gradients
 	// [8] = old_old_gradients
 	// [9] = scratch_gradients

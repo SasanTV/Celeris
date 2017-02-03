@@ -191,16 +191,24 @@ struct SurfaceShadingSetting{
 	ShadingOptions type;
 	int shadingVariable;
 	bool autoColormap;
+	bool autoInundationDepth;
 	float colormapMin;
 	float colormapMax;
+	float drylandDepthOfInundation;
+	float minInundation; // for visualization purposes
+	float maxInundation; // for visualization purposes
 
 
 	SurfaceShadingSetting(){
 		type = PHOTOREALISTIC;
 		shadingVariable = 0; // 0 is eta
 		autoColormap = true;
+		autoInundationDepth = true;
 		colormapMin = -1.0f;	
 		colormapMax = 1.0f;	
+		drylandDepthOfInundation = 0.1; // 10 cm.
+		minInundation = 0.001; // 1 mm
+		maxInundation = 1; // 1 m
 	}
 };
 
@@ -287,6 +295,7 @@ struct InitSetting {
 	float width; //x direction
 	float length; // y direction
 	float stillWaterElevation;
+
 	//Boundaries
 	BoundarySetting westBoundary;
 	BoundarySetting eastBoundary;
@@ -346,6 +355,8 @@ struct InitSetting {
 		width = 100; //x direction
 		length = 100; // y direction
 		stillWaterElevation = 0;
+		
+
 		//Boundaries
 		westBoundary = BoundarySetting ();
 		eastBoundary = BoundarySetting ();
