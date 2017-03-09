@@ -316,7 +316,7 @@ struct InitSetting {
 	Range logRange[MAX_NUM_RANGE];
 	int countOfRanges;
 
-	bool saveBathymetry;
+	bool saveBathymetry, saveInundation;
 
 	static const int MAX_NUM_GAUGE = 1000;
 	std::string gaugesFilename;
@@ -374,6 +374,7 @@ struct InitSetting {
 		countOfRanges = 0;
 
 		saveBathymetry = false;
+		saveInundation = false;
 
 		gaugesFilename = "NA";
 		int countOfGauges = 0;

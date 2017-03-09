@@ -763,8 +763,43 @@ void ShallowWaterEngine::dumpBathymetryToFile()
 	myfile.close();
 }
 
+void ShallowWaterEngine::dumpInundationToFile(ID3D11DeviceContext *context, ID3D11Texture2D *staging, ID3D11Texture2D *tex)
+{
+ 	const int nx = GetIntSetting("mesh_size_x");
+	const int ny = GetIntSetting("mesh_size_y");
+		
+	context->CopyResource(staging, tex);
+	MapTexture m(*context, *staging);
 
 
+	time_t timer = time(0);
+	struct tm * now = localtime(&timer);
+	std::ostringstream s;
+	s << now->tm_year + 1900 << "-" << now->tm_mon + 1 << "-" << now->tm_mday << " " << now->tm_hour << "-" << now->tm_min << "-" << now->tm_sec;
+	
+
+	std::string fileName = initSetting.logPath + "/" + s.str() +"-inundation.txt";	
+	std::ofstream myfile;
+	if (!myfile.is_open()){
+		myfile.open (fileName.c_str(),std::ios::out | std::ios::app);
+	}
+
+	myfile << "[nx] " << nx << "\n";
+	myfile << "[ny] " << ny << "\n";
+	myfile << "\n" << "\n";
+	myfile << "# This file contains the maximum depth of inundation on each point, in meters.";
+	myfile << "\n" << "\n";
+	myfile << "====================================" << "\n";
+
+	for (int j = 2; j < ny + 2; ++j) {
+		for (int i = 2; i <= nx + 2; ++i) {
+			const char *q = reinterpret_cast<const char*>(m.msr.pData) + j * m.msr.RowPitch;
+			const float *p = reinterpret_cast<const float*>(q) + i * 4;
+			myfile << p[0] << "\t" ;
+		}
+		myfile << "\n";
+	}
+}
 
 
 void ShallowWaterEngine::newTerrainSettings()
@@ -1493,6 +1528,12 @@ void ShallowWaterEngine::afterTimestep()
 		dumpBathymetryToFile();
 		initSetting.saveBathymetry = false;
 	}
+
+	if (initSetting.saveInundation){
+		dumpInundationToFile(context, m_psFullSizeStagingTexture.get(), m_psInundationTexture.get());
+		initSetting.saveInundation = false;
+	}
+	
 }
 void ShallowWaterEngine::resetTimestep(float realworld_dt, float elapsed_time)
 {
@@ -2473,7 +2514,7 @@ void ShallowWaterEngine::createTerrainTexture()
 				  GetIntSetting("mesh_size_x") + 4,
 				  GetIntSetting("mesh_size_y") + 4,
 				  0,  // initial data
-				  DXGI_FORMAT_R32_FLOAT,
+				  DXGI_FORMAT_R32G32B32A32_FLOAT,
 				  false,  // staging
 				  m_psInundationTexture,
 				  &m_psInundationTextureView,

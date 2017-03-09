@@ -213,6 +213,9 @@ void GuiManager::createGui()
 	save_bathymetry_button.reset(new gcn::Button("Save Bathymetry"));
     save_bathymetry_button->addActionListener(this);
 
+	save_inundation_button.reset(new gcn::Button("Save Inundation"));
+    save_inundation_button->addActionListener(this);
+
 	pause_simulation_button.reset(new gcn::Button("Pause Simulation"));
     pause_simulation_button->addActionListener(this);
     
@@ -536,6 +539,11 @@ void GuiManager::createGui()
 
 	y += 32;
 	container->add(pause_simulation_button.get(), 8, y);
+
+	y += 32;
+	container->add(save_inundation_button.get(), 8, y);
+
+
 }
 
 void GuiManager::createBoundaryTab(gcn::Container *tab)
@@ -699,6 +707,8 @@ void GuiManager::action(const gcn::ActionEvent &e)
 		initSetting.rereadBathy = true;
 	} else if (e.getSource() == save_bathymetry_button.get()) {
 		initSetting.saveBathymetry = true;
+	} else if (e.getSource() == save_inundation_button.get()) {
+		initSetting.saveInundation = true;
 	} else if (e.getSource() == pause_simulation_button.get()) {
         pause = !pause ;
 		pause_simulation_button.get()->setCaption(pause?"Run Simulation":"Pause Simulation");

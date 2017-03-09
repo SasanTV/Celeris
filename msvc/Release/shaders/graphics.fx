@@ -79,7 +79,7 @@ Texture2D<float4> txWater : register( t1 );
 Texture2D<float4> txNormal : register( t2 );
 
 // inundation map.
-Texture2D<float> txInundation : register( t3 );
+Texture2D<float4> txInundation : register( t3 );
 
 
 
@@ -151,7 +151,7 @@ struct TERRAIN_PS_INPUT {
 	float4 pos : SV_POSITION;      // clip space
     float3 normal : NORMAL;        // world space
     float2 tex_coord : TEXCOORD;
-	float wasInundated : INUNDATED;
+	float4 wasInundated : INUNDATED;
 };
 
 struct WATER_PS_INPUT {
@@ -193,7 +193,7 @@ TERRAIN_PS_INPUT TerrainVertexShader( VS_INPUT input )
 	const int3 idx = int3(input.pos.x, input.pos.y, 0);
     const float B = txHeightfield.Load(idx).r;
     output.B = B;
-	output.wasInundated = txInundation.Load(idx).r;
+	output.wasInundated = float4(txInundation.Load(idx).r, 0, 0, 0);
 	
     // lookup texture values at the input point
     const int3 tpos = int3(input.pos.x, input.pos.y, 0);
@@ -234,7 +234,7 @@ float4 TerrainPixelShader( TERRAIN_PS_INPUT input ) : SV_Target
 		tex_colour = txGrass.Sample(samLinear, float2(clamp(colormap_u,0.01,.99),0.5f)).rgb;   
 	}
 	
-	if(input.wasInundated > drylandDepthOfInundation && drylandDepthOfInundation > 0){
+	if(input.wasInundated.r > drylandDepthOfInundation && drylandDepthOfInundation > 0){
 		tex_colour = float3(0.9,0,1);
 	}
 

@@ -206,7 +206,7 @@ Texture2D<float4> txV : register( t2 );
 Texture2D<float4> txNormal : register( t3 );
 
 // r = wasInudated
-Texture2D<float> txInundation : register( t3 );
+Texture2D<float4> txInundation : register( t3 );
 
 
 // .r = 1 (w-flux)
@@ -257,7 +257,7 @@ struct PASS_1_OUTPUT {
 struct PASS_2_OUTPUT {
     float4 xflux : SV_TARGET0;   // {Hx1, Hx2, Hx3, unused}
     float4 yflux : SV_TARGET1;   // {Hy1, Hy2, Hy3, unused}
-	float wasInundated : SV_TARGET3;
+	float4 wasInundated : SV_TARGET2; //(MaxDepth, unused, unused, unused). The unused variables will be used for max v, u, and |V| later. 
 };
 
 
@@ -520,7 +520,7 @@ PASS_2_OUTPUT Pass2( VS_OUTPUT input )
                                    h_here.r * (v_here.r * v_here.r + half_g * h_here.r),
                                    hS_north * vS_north - h_here.r * v_here.r);
 	
-	output.wasInundated = txNormal.Load(idx).a; 
+	output.wasInundated = float4(txNormal.Load(idx).a, 0, 0, 0); 
     return output;
 }
 

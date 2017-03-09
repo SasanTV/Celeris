@@ -64,9 +64,8 @@ public:
     void remesh(ResetType rt);   // call if mesh size changes.
 
 	void dumpBathymetryToFile(); // writes bathymetry to file.
+	void dumpInundationToFile(ID3D11DeviceContext *context, ID3D11Texture2D *staging, ID3D11Texture2D *tex); // writes inundation to file.
 
-
-    
 	// call following camera move or window resize  
 	void moveCamera(float cam_x, float cam_y, float cam_z, float yaw, float pitch, int vp_width, int vp_height);
 
