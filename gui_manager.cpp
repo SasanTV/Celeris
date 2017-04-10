@@ -138,10 +138,13 @@ namespace {
 		SetSettingD("valley_length", initSetting.length);
 		SetSettingD("valley_width", initSetting.width);
         //SetSettingD("clip_camera", 0);
-		SetSettingD("sea_level", initSetting.stillWaterElevation);
+		//SetSettingD("sea_level", initSetting.stillWaterElevation);
+		SetSettingD("Tide/Surge/SLR", initSetting.tideSurgeSLR.setValue);
 		//SetSettingD("use_sea_level", 1);
 		SetSettingD("Grid Scale", initSetting.graphics.gridScale);
 		SetSettingD("Grid", initSetting.graphics.gridOn);
+		SetSettingD("Dissipation Threshold", 0.25);
+
     }
 }
 
@@ -350,6 +353,7 @@ void GuiManager::createGui()
                 list_model->add("v velocity");
 				list_model->add("velocity magnitude");
 				list_model->add("vorticity");
+				list_model->add("max water surface");
                 list_models.push_back(list_model);
             
                 dropdown.reset(new gcn::DropDown(list_model.get()));
@@ -668,6 +672,20 @@ void GuiManager::action(const gcn::ActionEvent &e)
 
         if (check_boxes[i].get() == cb) {
             g_settings[i].value = cb->isSelected() ? 1.0 : 0.0;
+
+
+			if (g_settings[i].name == "Spectrum Wavemaker"){
+				for (size_t j = 0; j < textfields.size(); ++j) { // Seems with the current GUI structure, iteration is the only way to get to a specific object
+					gcn::TextField *tempField = textfields[j].get();
+					if(g_settings[j].name == "significant waveheight" || g_settings[j].name == "peak period" ||
+						g_settings[j].name == "mean direction" || g_settings[j].name == "depth at source"){
+						tempField->setEnabled(g_settings[i].value);
+						tempField->setBackgroundColor(g_settings[i].value ? gcn::Color(255,255,255) : gcn::Color(180,180,180));
+						
+					}
+				}
+			}
+
             g_reset_type = std::max(g_reset_type, g_settings[i].reset_type);
             break;
         }
@@ -681,13 +699,25 @@ void GuiManager::action(const gcn::ActionEvent &e)
 					gcn::TextField *tempField = textfields[j].get();
 					if(tempField != 0){
 						if(g_settings[j].name == "wave amplitude" || g_settings[j].name == "wave direction" || g_settings[j].name == "wave period"){
-							tempField->setEnabled((GetIntSetting("Boundary Type")==2));
-							tempField->setBackgroundColor((GetIntSetting("Boundary Type")==2)? gcn::Color(255,255,255) : gcn::Color(180,180,180));// ((GetIntSetting("Boundary Type")==2));
+							tempField->setEnabled((GetIntSetting("Boundary Type") == 2));
+							tempField->setBackgroundColor((GetIntSetting("Boundary Type") == 2)? gcn::Color(255,255,255) : gcn::Color(180,180,180));// ((GetIntSetting("Boundary Type")==2));
 						}
+						if(g_settings[j].name == "significant waveheight" || g_settings[j].name == "peak period" ||
+							g_settings[j].name == "mean direction" || g_settings[j].name == "depth at source"){
+							tempField->setEnabled((GetIntSetting("Spectrum Wavemaker") && GetIntSetting("Boundary Type") == 3));
+							tempField->setBackgroundColor((GetIntSetting("Spectrum Wavemaker") && GetIntSetting("Boundary Type") == 3)? gcn::Color(255,255,255) : gcn::Color(180,180,180));
+						}						
+				
 					}
 				}
 
-
+				for (size_t j = 0; j < check_boxes.size(); ++j) { // Seems with the current GUI structure, iteration is the only way to get to a specific object
+					gcn::CheckBox *tempCheckBox = check_boxes[j].get();
+					if(g_settings[j].name == "Spectrum Wavemaker"){
+						tempCheckBox->setEnabled((GetIntSetting("Boundary Type") == 3));
+						tempCheckBox->setBackgroundColor((GetIntSetting("Boundary Type") == 3)? gcn::Color(255,255,255) : gcn::Color(180,180,180));// ((GetIntSetting("Boundary Type")==2));
+					}
+				}
 			}
 
             break;
@@ -780,6 +810,7 @@ void GuiManager::boundary_set_button_do()
 		
 		int width_num;
 		float amplitude, period, theta, seal_level;
+		float significant_waveheight, peak_period, mean_theta, depth_at_source, useSpectrum;
 		const float PI = std::atan(1.0f) * 4.0f;
 
 		for (size_t j = 0; j < textfields.size(); ++j) { // Seems with the current GUI structure, iteration is the only way to get to a specific object
@@ -797,7 +828,15 @@ void GuiManager::boundary_set_button_do()
 					period = std::atof(tempField->getText().c_str());
 				} else if(g_settings[j].name == "wave direction"){
 					theta = std::atof(tempField->getText().c_str());
-				}
+				} else if(g_settings[j].name == "significant waveheight"){
+					significant_waveheight = std::atof(tempField->getText().c_str());
+				} else if(g_settings[j].name == "peak period"){
+					peak_period = std::atof(tempField->getText().c_str());
+				} else if(g_settings[j].name == "mean direction"){
+					mean_theta = std::atof(tempField->getText().c_str());
+				} else if(g_settings[j].name == "depth at source"){
+					depth_at_source = std::atof(tempField->getText().c_str());
+				} 
 			}
 		}
 
@@ -810,6 +849,13 @@ void GuiManager::boundary_set_button_do()
 			initSetting.westBoundary.sineWaveSetting.amplitude = amplitude;
 			initSetting.westBoundary.sineWaveSetting.period = period;
 			initSetting.westBoundary.sineWaveSetting.theta = PI/180.0 * theta;
+
+			initSetting.westBoundary.IrrWaveSpectrumSetting.useSpectrum = GetIntSetting("Spectrum Wavemaker");
+			initSetting.westBoundary.IrrWaveSpectrumSetting.significant_waveheight = significant_waveheight;
+			initSetting.westBoundary.IrrWaveSpectrumSetting.peak_period = peak_period;
+			initSetting.westBoundary.IrrWaveSpectrumSetting.mean_theta = mean_theta;
+			initSetting.westBoundary.IrrWaveSpectrumSetting.depth_at_source = depth_at_source;
+
 			initSetting.westBoundary.hasChanged = true;
 			break;
 		case B_EAST:
@@ -819,6 +865,13 @@ void GuiManager::boundary_set_button_do()
 			initSetting.eastBoundary.sineWaveSetting.amplitude = amplitude;
 			initSetting.eastBoundary.sineWaveSetting.period = period;
 			initSetting.eastBoundary.sineWaveSetting.theta = PI/180.0 * theta;
+
+			initSetting.eastBoundary.IrrWaveSpectrumSetting.useSpectrum = GetIntSetting("Spectrum Wavemaker");
+			initSetting.eastBoundary.IrrWaveSpectrumSetting.significant_waveheight = significant_waveheight;
+			initSetting.eastBoundary.IrrWaveSpectrumSetting.peak_period = peak_period;
+			initSetting.eastBoundary.IrrWaveSpectrumSetting.mean_theta = mean_theta;
+			initSetting.eastBoundary.IrrWaveSpectrumSetting.depth_at_source = depth_at_source;
+
 			initSetting.eastBoundary.hasChanged = true;
 			break;
 		case B_SOUTH:
@@ -828,6 +881,13 @@ void GuiManager::boundary_set_button_do()
 			initSetting.southBoundary.sineWaveSetting.amplitude = amplitude;
 			initSetting.southBoundary.sineWaveSetting.period = period;
 			initSetting.southBoundary.sineWaveSetting.theta = PI/180.0 * theta;
+
+			initSetting.southBoundary.IrrWaveSpectrumSetting.useSpectrum = GetIntSetting("Spectrum Wavemaker");
+			initSetting.southBoundary.IrrWaveSpectrumSetting.significant_waveheight = significant_waveheight;
+			initSetting.southBoundary.IrrWaveSpectrumSetting.peak_period = peak_period;
+			initSetting.southBoundary.IrrWaveSpectrumSetting.mean_theta = mean_theta;
+			initSetting.southBoundary.IrrWaveSpectrumSetting.depth_at_source = depth_at_source;
+
 			initSetting.southBoundary.hasChanged = true;
 
 			break;
@@ -838,6 +898,13 @@ void GuiManager::boundary_set_button_do()
 			initSetting.northBoundary.sineWaveSetting.amplitude = amplitude;
 			initSetting.northBoundary.sineWaveSetting.period = period;
 			initSetting.northBoundary.sineWaveSetting.theta = PI/180.0 * theta;
+
+			initSetting.northBoundary.IrrWaveSpectrumSetting.useSpectrum = GetIntSetting("Spectrum Wavemaker");
+			initSetting.northBoundary.IrrWaveSpectrumSetting.significant_waveheight = significant_waveheight;
+			initSetting.northBoundary.IrrWaveSpectrumSetting.peak_period = peak_period;
+			initSetting.northBoundary.IrrWaveSpectrumSetting.mean_theta = mean_theta;
+			initSetting.northBoundary.IrrWaveSpectrumSetting.depth_at_source = depth_at_source;
+
 			initSetting.northBoundary.hasChanged = true;
 
 			break;
@@ -890,6 +957,7 @@ void GuiManager::resetSliders()
             sliders[i]->setValue(RealToSlider(s, s.value));
             SetLabelTxt(*values[i], s.value);
         } else if (s.type == S_CHECKBOX) {
+
             check_boxes[i]->setSelected(s.value != 0);
         }
     }
@@ -899,7 +967,7 @@ void GuiManager::resetColormapSliders()
 {
     for (int i = 0; i < int(sliders.size()); ++i) {
         Setting &s = g_settings[i];
-		if (s.type == S_SLIDER && (s.name == "Colormap Max" || s.name == "Colormap Min" || s.name == "Colormap Min " || s.name == "Colormap Max " || s.name == "Flow Depth")) {
+		if (s.type == S_SLIDER && (s.name == "Colormap Max" || s.name == "Colormap Min" || s.name == "Colormap Min " || s.name == "Colormap Max " || s.name == "Flow Depth" || s.name == "Tide/Surge/SLR")) {
 			sliders[i]->setScale(RealToSlider(s, s.min),RealToSlider(s, s.max));	
 			sliders[i]->setStepLength((s.max-s.min)/20.0f);
 			sliders[i]->setValue(RealToSlider(s, s.value));

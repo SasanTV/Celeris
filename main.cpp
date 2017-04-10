@@ -318,7 +318,7 @@ int real_main()
     std::auto_ptr<MyListener> listener;
     boost::shared_ptr<Coercri::DX11Window> window = 
         boost::static_pointer_cast<Coercri::DX11Window>(
-            gfx_driver->createWindow(g_width + GUI_WIDTH, g_height, true, false, initSetting.project_name + " - Celeris Advent (v1.2.4)"));
+            gfx_driver->createWindow(g_width + GUI_WIDTH, g_height, true, false, initSetting.project_name + " - Celeris Advent (v1.2.5)"));
     GuiManager gui_manager(window, timer, GUI_WIDTH);
 	
     // Create the ShallowWaterEngine
@@ -591,6 +591,24 @@ bool readInputCML()
 				} else {
 					initSetting.bathymetryFileName = tempString;
 				}
+			}
+			else if(elemName == "tideSurgeSLR")
+			{
+				float tideMin = -1.0f;
+				float tideMax = +1.0f;
+				float tideSet =  0.0f;
+				bool autoTide = true;
+				elem->QueryBoolAttribute("auto", &autoTide);				
+				
+				if (!autoTide){
+					elem->QueryFloatAttribute("min", &tideMin);
+					elem->QueryFloatAttribute("max", &tideMax);
+					elem->QueryFloatAttribute("set", &tideSet);
+				}
+				initSetting.tideSurgeSLR.autoValue = autoTide;
+				initSetting.tideSurgeSLR.minValue = tideMin;						
+				initSetting.tideSurgeSLR.maxValue = tideMax;
+				initSetting.tideSurgeSLR.setValue = tideSet;
 			}
 			else if(elemName == "hotStartFilePath")
 			{

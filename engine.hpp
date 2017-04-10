@@ -94,6 +94,7 @@ public:
 
 	enum TimeIntegrationScheme : signed int {euler, predictor, corrector};
 	void createBoundaryShaders();
+	void createBoundaryShadersInit();
     
     
 private:
@@ -119,7 +120,8 @@ private:
     void createSimTextures(ResetType reset_type);
 	void createTridiagonalCoefTextures();
     void createConstantBuffers();
-	void fillIrregularWavesDataConstantBuffer();
+	std::string ShallowWaterEngine::generateSpectrumWaves(IrregularWaveSpectrumSetting inSpectrum, std::string boundarySide);
+	void fillIrregularWavesDataConstantBuffer(std::string boundarySide);
 	void fillUniformTimeSeriesMainMemoryBuffer();
     void fillConstantBuffers();
     void createDepthStencil(int w, int h);
@@ -132,6 +134,7 @@ private:
 
     void setupMousePicking();
     void raiseLowerTerrain(float wx, float wy, float dt);
+	void shiftTerrainSlider(float shift_up);
 
 	int  st_getCountOfMatrices(int n);
 
@@ -188,9 +191,9 @@ private:
     Coercri::ComPtrWrapper<ID3D11ShaderResourceView> m_psTerrainTextureView;
     Coercri::ComPtrWrapper<ID3D11Texture2D> m_psBottomTexture;
     Coercri::ComPtrWrapper<ID3D11ShaderResourceView> m_psBottomTextureView;
-	Coercri::ComPtrWrapper<ID3D11Texture2D> m_psInundationTexture;
-    Coercri::ComPtrWrapper<ID3D11ShaderResourceView> m_psInundationTextureView;
-    Coercri::ComPtrWrapper<ID3D11RenderTargetView> m_psInundationRenderTargetView;
+	Coercri::ComPtrWrapper<ID3D11Texture2D> m_psAuxiliary1Texture, m_psAuxiliary2Texture;
+    Coercri::ComPtrWrapper<ID3D11ShaderResourceView> m_psAuxiliary1TextureView, m_psAuxiliary2TextureView;
+    Coercri::ComPtrWrapper<ID3D11RenderTargetView> m_psAuxiliary1RenderTargetView, m_psAuxiliary2RenderTargetView;
 	
 
     // simulation textures:

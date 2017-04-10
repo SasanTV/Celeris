@@ -106,7 +106,7 @@ cbuffer IrregularWavesConstBuffer : register( b1 )
     float4  irregularWavesWest[1000],
 			irregularWavesEast[1000],
 			irregularWavesSouth[1000],
-			irregularWavesNorth[1000];; //  IMPORTANT NOTE: The hardcoded number needs to be the same as MAX_NUM_OF_IRREGULAR_WAVES defined in engine.hpp.
+			irregularWavesNorth[1000]; //  IMPORTANT NOTE: The hardcoded number needs to be the same as MAX_NUM_OF_IRREGULAR_WAVES defined in engine.hpp.
 	int numberOfWavesWest, numberOfWavesEast, numberOfWavesSouth, numberOfWavesNorth;
 };
 
@@ -206,7 +206,12 @@ Texture2D<float4> txV : register( t2 );
 Texture2D<float4> txNormal : register( t3 );
 
 // r = wasInudated
-Texture2D<float4> txInundation : register( t3 );
+Texture2D<float4> txAuxiliary1 : register( t3 );
+
+// r = maxFlowDepth, b = breaking
+Texture2D<float4> txAuxiliary2 : register( t4 );
+
+
 
 
 // .r = 1 (w-flux)
@@ -248,16 +253,17 @@ struct VS_OUTPUT {
 };
 
 struct PASS_1_OUTPUT {
-    float4 h : SV_TARGET0;    // {hN, hE, hS, hW}
-    float4 u : SV_TARGET1;    // {uN, uE, uS, uW}
-    float4 v : SV_TARGET2;    // {vN, vE, vS, vW}
-    float4 n : SV_TARGET3;    // {nX, nY, nZ, wasInundated}
+    float4 h  : SV_TARGET0;    // {hN, hE, hS, hW}
+    float4 u  : SV_TARGET1;    // {uN, uE, uS, uW}
+    float4 v  : SV_TARGET2;    // {vN, vE, vS, vW}
+    float4 n  : SV_TARGET3;    // {nX, nY, nZ, unused}
+	float4 aux: SV_TARGET4;    // (maxFlowDepth, unused, breaking, unused)
 };
 
 struct PASS_2_OUTPUT {
     float4 xflux : SV_TARGET0;   // {Hx1, Hx2, Hx3, unused}
     float4 yflux : SV_TARGET1;   // {Hy1, Hy2, Hy3, unused}
-	float4 wasInundated : SV_TARGET2; //(MaxDepth, unused, unused, unused). The unused variables will be used for max v, u, and |V| later. 
+	float4 auxiliary : SV_TARGET2; //(MaxDepth, unused, unused, unused). The unused variables will be used for max v, u, and |V| later. 
 };
 
 
@@ -295,17 +301,20 @@ float MinMod(float a, float b, float c)
 }
 
 void Reconstruct(float west, float here, float east,
-                 out float out_west, out float out_east)
+                 out float out_west, out float out_east, out float standard_deviation)
 {
     // west, here, east = values of U_bar at j-1, j, j+1 (or k-1, k, k+1)
     // out_west, out_east = reconstructed values of U_west and U_east at (j,k)
 
 	//ST_: YOU MAY WANT TO ADD DISSPATION CORRECTION. LOOK INTO YOUR MATLAB CODE!
     
-    float dx_grad_over_two = 0.25f * MinMod(TWO_THETA * (here - west),
-                                            (east - west),
-                                            TWO_THETA * (east - here));
+	float z1 = TWO_THETA * (here - west);
+	float z2 = (east - west);
+	float z3 = TWO_THETA * (east - here);
+    float dx_grad_over_two = 0.25f * MinMod( z1, z2, z3);
 
+	float mu = 0.5f * (z1 + z2 + z3) / 3.0f;
+	standard_deviation = sqrt(((z1 - mu)*(z1 - mu) + (z2 - mu)*(z2 - mu) + (z3 - mu)*(z3 - mu)) / 3.0f);
     out_east = here + dx_grad_over_two;
     out_west = here - dx_grad_over_two;
 }
@@ -399,14 +408,19 @@ PASS_1_OUTPUT Pass1(VS_OUTPUT input)
     float4 hu;   // {huN, huE, huS, huW}
     float4 hv;   // {hvN, hvE, hvS, hvW}
     
-    Reconstruct(in_west.r, in_here.r, in_east.r, w.a, w.g);
-    Reconstruct(in_south.r, in_here.r, in_north.r, w.b, w.r);
+	float max_sd2;
+	float temp_sd2;
+
+    Reconstruct(in_west.r, in_here.r, in_east.r, w.a, w.g, temp_sd2); 
+	max_sd2 = temp_sd2 * one_over_dx;
+	Reconstruct(in_south.r, in_here.r, in_north.r, w.b, w.r, temp_sd2); 
+    max_sd2 = atan(max(max_sd2, temp_sd2 * one_over_dy));
+	
+    Reconstruct(in_west.g, in_here.g, in_east.g, hu.a, hu.g, temp_sd2); 
+    Reconstruct(in_south.g, in_here.g, in_north.g, hu.b, hu.r, temp_sd2); 
     
-    Reconstruct(in_west.g, in_here.g, in_east.g, hu.a, hu.g);
-    Reconstruct(in_south.g, in_here.g, in_north.g, hu.b, hu.r);
-    
-    Reconstruct(in_west.b, in_here.b, in_east.b, hv.a, hv.g);
-    Reconstruct(in_south.b, in_here.b, in_north.b, hv.b, hv.r);
+    Reconstruct(in_west.b, in_here.b, in_east.b, hv.a, hv.g, temp_sd2); 
+    Reconstruct(in_south.b, in_here.b, in_north.b, hv.b, hv.r, temp_sd2); 
 
 
     // Correct the w values to ensure positivity of h
@@ -437,10 +451,10 @@ PASS_1_OUTPUT Pass1(VS_OUTPUT input)
     normal.z = 2;
     normal = normalize(normal);
 
-	float maxInundatedDepth = max((h.r + h.g + h.b + h.a)/4.0f, txInundation.Load(idx).r);
+	float maxInundatedDepth = max((h.r + h.g + h.b + h.a)/4.0f, txAuxiliary1.Load(idx).r);
 	
-    output.n = float4(normal.x, normal.y, normal.z, maxInundatedDepth);
-    
+    output.n = float4(normal.x, normal.y, normal.z, 0);
+    output.aux = float4(maxInundatedDepth, 0, max_sd2, 0);
     return output;
 }
 
@@ -520,7 +534,8 @@ PASS_2_OUTPUT Pass2( VS_OUTPUT input )
                                    h_here.r * (v_here.r * v_here.r + half_g * h_here.r),
                                    hS_north * vS_north - h_here.r * v_here.r);
 	
-	output.wasInundated = float4(txNormal.Load(idx).a, 0, 0, 0); 
+	// max_sd2 (i.e. b) varies in every time step, unlike r0
+	output.auxiliary = float4(txAuxiliary2.Load(idx).r, 0, txAuxiliary2.Load(idx).b, 0); 
     return output;
 }
 
