@@ -78,8 +78,10 @@ Texture2D<float4> txWater : register( t1 );
 
 Texture2D<float4> txNormal : register( t2 );
 
-// inundation map.
-Texture2D<float4> txInundation : register( t3 );
+// r = maxFlowDepth
+// g = unused
+// b = breaking
+Texture2D<float4> txAuxiliary1 : register( t4 );
 
 
 
@@ -120,7 +122,7 @@ cbuffer MyConstBuffer : register( b0 )
 	float zScale;
 	float seaLevel;
 	
-	//  0 is Photorealisitic,  1 is eta, 2 is u, 3 is v, 4 is speed. 
+	//  0 is Photorealisitic,  1 is eta, 2 is u, 3 is v, 4 is speed, 5 is vorticity, 6 is max elevation (eta) .
 	int water_shading;
 	// 0 is texture, 1 and anything else is colormap.
 	int terrain_shading;
@@ -133,6 +135,9 @@ cbuffer MyConstBuffer : register( b0 )
 	
 	
 	int isGridOn; //passing bool as integer.
+
+	int is_dissipation_threshold_on; //passing bool as integer.
+	float dissipation_threshold;
 
 	float sqrt_sqrt_epsilon;
 	float drylandDepthOfInundation;
@@ -151,7 +156,7 @@ struct TERRAIN_PS_INPUT {
 	float4 pos : SV_POSITION;      // clip space
     float3 normal : NORMAL;        // world space
     float2 tex_coord : TEXCOORD;
-	float4 wasInundated : INUNDATED;
+	float4 auxiliary : INUNDATED;
 };
 
 struct WATER_PS_INPUT {
@@ -167,6 +172,7 @@ struct WATER_PS_INPUT {
     float2 world_pos : WORLD_XY_POS;   // world space
     float3 terrain_normal : TERRAIN_NORMAL;
 	float B : BOTTOM_HEIGHT;
+	float4 auxiliary : INUNDATED;
 };
 
 struct SKYBOX_PS_INPUT {
@@ -193,7 +199,7 @@ TERRAIN_PS_INPUT TerrainVertexShader( VS_INPUT input )
 	const int3 idx = int3(input.pos.x, input.pos.y, 0);
     const float B = txHeightfield.Load(idx).r;
     output.B = B;
-	output.wasInundated = float4(txInundation.Load(idx).r, 0, 0, 0);
+	output.auxiliary = float4(txAuxiliary1.Load(idx).r, 0, txAuxiliary1.Load(idx).b, 0);
 	
     // lookup texture values at the input point
     const int3 tpos = int3(input.pos.x, input.pos.y, 0);
@@ -234,7 +240,7 @@ float4 TerrainPixelShader( TERRAIN_PS_INPUT input ) : SV_Target
 		tex_colour = txGrass.Sample(samLinear, float2(clamp(colormap_u,0.01,.99),0.5f)).rgb;   
 	}
 	
-	if(input.wasInundated.r > drylandDepthOfInundation && drylandDepthOfInundation > 0){
+	if(input.auxiliary.r > drylandDepthOfInundation && drylandDepthOfInundation > 0){
 		tex_colour = float3(0.9,0,1);
 	}
 
@@ -257,7 +263,7 @@ WATER_PS_INPUT WaterVertexShader( VS_INPUT input )
 {
     WATER_PS_INPUT output;
 
-	const float h_min = sqrt_sqrt_epsilon; // hardcoded value to avoid singularity
+	const float h_min = sqrt_sqrt_epsilon; 
 
     // lookup the terrain level
     const int3 idx = int3(input.pos.x, input.pos.y, 0);
@@ -265,6 +271,8 @@ WATER_PS_INPUT WaterVertexShader( VS_INPUT input )
     const float3 ground_tex = txHeightfield.Load(idx);
     const float B =  ground_tex.r;
 	output.B = B;
+	output.auxiliary = float4(txAuxiliary1.Load(idx).r, 0, txAuxiliary1.Load(idx).b, 0);
+
     const float3 ground_normal = normalize(float3(-ground_tex.g, -ground_tex.b, 1));
     
     // lookup the water level
@@ -281,6 +289,7 @@ WATER_PS_INPUT WaterVertexShader( VS_INPUT input )
 		output.u =  w.g/ h; 
 		output.v =  w.b/ h;
 	} else {
+		//This can be hu/(sqrt_sqrt_h). check, which one is better for visualization. 
 		output.u =  0; 
 		output.v =  0;
 	}
@@ -356,7 +365,7 @@ float4 WaterPixelShader( WATER_PS_INPUT input ) : SV_Target
     // (this is the percentage that reflects, as opposed to transmits)
     float fresnel = (1-fresnel_coeff) + fresnel_coeff * pow(max(0, 1 - dot(input.eye, input.normal)), fresnel_exponent);
 	
-	// this avoids jittering of water artifact on land.
+	// this avoids jittering of water graphics artifact on land.
 	if (input.water_depth < min(1e-10, sqrt_sqrt_epsilon)) {
 		fresnel = 0;
 	}
@@ -367,23 +376,30 @@ float4 WaterPixelShader( WATER_PS_INPUT input ) : SV_Target
 		reflect_col = txSkybox.Sample(samLinear, reflection_dir).rgb;
 	} else {
 		float colormap_u = 0; //  this u is the u from texture coordinate not velocity (u,v).
-		if (water_shading == 1){
+		if (water_shading == 1){ //eta
 			colormap_u = (input.eta - water_colormap_min) / (water_colormap_max - water_colormap_min);
-		} else if (water_shading == 2){
+		} else if (water_shading == 2){ //u
 			colormap_u = (input.u - water_colormap_min) / (water_colormap_max - water_colormap_min);
-		} else if (water_shading == 3){
+		} else if (water_shading == 3){ //v
 			colormap_u = (input.v - water_colormap_min) / (water_colormap_max - water_colormap_min);
-		} else if (water_shading == 4){
+		} else if (water_shading == 4){// v mag
 			float speed = sqrt(input.v * input.v + input.u * input.u);
 			colormap_u = (speed - water_colormap_min) / (water_colormap_max - water_colormap_min);  
-		} else if (water_shading == 5){
+		} else if (water_shading == 5){ // vorticity
 			colormap_u = (input.vorticity - water_colormap_min) / (water_colormap_max - water_colormap_min);  
+		} else if (water_shading == 6){ // max eta
+			colormap_u = (input.auxiliary.r + input.B - water_colormap_min) / (water_colormap_max - water_colormap_min);  
 		}
-		
+
 		reflect_col = txColormap.Sample(samLinear, float2(clamp(colormap_u,0.01,.99),0.5f)).rgb;   
 		if(isGridOn){
 			reflect_col += (1 - txGrid.Sample(samLinear, input.tex_coord).rgb);
 		}
+	}
+
+	// to visualize breaking
+	if (is_dissipation_threshold_on && input.auxiliary.b > dissipation_threshold){
+		reflect_col = float3(1,1,1);
 	}
     //specular
     reflect_col += specular_intensity * pow(max(0,dot(reflection_dir, light_dir)), specular_exponent);

@@ -12,7 +12,8 @@
 	<fieldDimensions width = 30 length = 30 stillWaterElevation = 0></fieldDimensions>
 	<gridSize nx = 201 ny = 201></gridSize>
 	<bathymetryFilePath> conical_island_400x400.cbf </bathymetryFilePath>
-	
+	<tideSurgeSLR auto = false min = -2.25 max = 3 set = .2></tideSurgeSLR>
+
 	
 	
 	<!-- Settings for Initial Condition -->

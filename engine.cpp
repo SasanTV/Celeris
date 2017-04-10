@@ -52,6 +52,7 @@
 #include <xnamath.h>
 
 #include <cmath>
+#include <boost/math/special_functions/gamma.hpp>
 
 #include <fstream>
 #include <string>
@@ -180,7 +181,10 @@ namespace {
 		float terrain_colormap_min;
 		float terrain_colormap_max;
 
-		int isGridOn;
+		int isGridOn; //passing bool as integer.
+
+		int is_dissipation_threshold_on; //passing bool as integer.
+		float dissipation_threshold;
 
 		float sqrt_sqrt_epsilon;
 		float drylandDepthOfInundation;
@@ -884,8 +888,9 @@ void ShallowWaterEngine::timestep()
     ID3D11ShaderResourceView * v_tex = m_psSimTextureView[3].get();
     ID3D11ShaderResourceView * xflux_tex = m_psSimTextureView[4].get();
     ID3D11ShaderResourceView * yflux_tex = m_psSimTextureView[5].get();
-	ID3D11ShaderResourceView * normal_tex = m_psSimTextureView[6].get();     // {nX, nY, nZ, wasInundated}
-	ID3D11ShaderResourceView * inundation_tex = m_psInundationTextureView.get();
+	ID3D11ShaderResourceView * normal_tex = m_psSimTextureView[6].get();     // {nX, nY, nZ, unused}
+	ID3D11ShaderResourceView * auxiliary1_tex = m_psAuxiliary1TextureView.get();
+	ID3D11ShaderResourceView * auxiliary2_tex = m_psAuxiliary2TextureView.get();
     
 	ID3D11RenderTargetView * new_state_or_h_target = m_psSimRenderTargetView[1 - sim_idx].get();
 	ID3D11RenderTargetView * old_state_or_h_target = m_psSimRenderTargetView[sim_idx].get();
@@ -903,7 +908,8 @@ void ShallowWaterEngine::timestep()
     ID3D11RenderTargetView * xflux_target = m_psSimRenderTargetView[4].get();
     ID3D11RenderTargetView * yflux_target = m_psSimRenderTargetView[5].get();
     ID3D11RenderTargetView * normal_target = m_psSimRenderTargetView[6].get();
-	ID3D11RenderTargetView * inundation_target = m_psInundationRenderTargetView.get();
+	ID3D11RenderTargetView * auxiliary1_target = m_psAuxiliary1RenderTargetView.get();
+	ID3D11RenderTargetView * auxiliary2_target = m_psAuxiliary2RenderTargetView.get();
 		              
 
     // Common Settings
@@ -948,13 +954,13 @@ void ShallowWaterEngine::timestep()
         vert_buf = m_psSimVertexBuffer11.get();
         context->IASetVertexBuffers(0, 1, &vert_buf, &stride, &offset);
         
-        ID3D11RenderTargetView * p1_tgt[] = {new_state_or_h_target, u_target, v_target, normal_target};
-        context->OMSetRenderTargets(4, &p1_tgt[0], 0);
+        ID3D11RenderTargetView * p1_tgt[] = {new_state_or_h_target, u_target, v_target, normal_target, auxiliary2_target};
+        context->OMSetRenderTargets(5, &p1_tgt[0], 0);
         
         context->PSSetShader(m_psSimPixelShader[0].get(), 0, 0);
         context->PSSetShaderResources(0, 1, &old_state_tex);
         context->PSSetShaderResources(1, 1, &bottom_tex);
-		context->PSSetShaderResources(3, 1, &inundation_tex);
+		context->PSSetShaderResources(3, 1, &auxiliary1_tex);
 	        
         context->Draw(6, 0);    
 
@@ -980,8 +986,11 @@ void ShallowWaterEngine::timestep()
     context->PSSetShaderResources(1, 1, &u_tex);
     context->PSSetShaderResources(2, 1, &v_tex);
 	context->PSSetShaderResources(3, 1, &normal_tex);
+	context->PSSetShaderResources(4, 1, &auxiliary2_tex);
 
-    ID3D11RenderTargetView * p2_tgt[] = {xflux_target, yflux_target, inundation_target, 0};
+	
+
+    ID3D11RenderTargetView * p2_tgt[] = {xflux_target, yflux_target, auxiliary1_target, 0};
     context->OMSetRenderTargets(4, &p2_tgt[0], 0);
 
     context->PSSetShader(m_psSimPixelShader[1].get(), 0, 0);
@@ -1451,12 +1460,12 @@ void ShallowWaterEngine::timestep()
     
     vert_buf = m_psSimVertexBuffer11.get();
     context->IASetVertexBuffers(0, 1, &vert_buf, &stride, &offset);
-    ID3D11RenderTargetView * p1_tgt[] = { old_state_or_h_target, u_target, v_target, normal_target };
-    context->OMSetRenderTargets(4, &p1_tgt[0], 0);
+    ID3D11RenderTargetView * p1_tgt[] = { old_state_or_h_target, u_target, v_target, normal_target, auxiliary2_target};
+    context->OMSetRenderTargets(5, &p1_tgt[0], 0);
     context->PSSetShader(m_psSimPixelShader[0].get(), 0, 0);
     context->PSSetShaderResources(0, 1, &new_state_or_h_tex);
     context->PSSetShaderResources(1, 1, &bottom_tex);
-	context->PSSetShaderResources(3, 1, &inundation_tex);
+	context->PSSetShaderResources(3, 1, &auxiliary1_tex);
     context->Draw(6, 0);
 
 
@@ -1530,7 +1539,7 @@ void ShallowWaterEngine::afterTimestep()
 	}
 
 	if (initSetting.saveInundation){
-		dumpInundationToFile(context, m_psFullSizeStagingTexture.get(), m_psInundationTexture.get());
+		dumpInundationToFile(context, m_psFullSizeStagingTexture.get(), m_psAuxiliary1Texture.get());
 		initSetting.saveInundation = false;
 	}
 	
@@ -1541,7 +1550,19 @@ void ShallowWaterEngine::resetTimestep(float realworld_dt, float elapsed_time)
 	static float old_real_time = 1;
 	const int nx = GetIntSetting("mesh_size_x");
     const int ny = GetIntSetting("mesh_size_y");
-    realworld_timestep = realworld_dt;   
+    realworld_timestep = realworld_dt;  
+
+
+	static float shift_terrain = GetSetting("Tide/Surge/SLR");
+	if (shift_terrain != GetSetting("Tide/Surge/SLR")){
+
+		shiftTerrainSlider(- GetSetting("Tide/Surge/SLR") + shift_terrain);
+
+		context->CopyResource(m_psAuxiliary1Texture.get(), st_psTriDigTexture_D1x[0].get());
+		context->CopyResource(m_psAuxiliary2Texture.get(), st_psTriDigTexture_D1x[0].get());  
+
+		shift_terrain  =  GetSetting("Tide/Surge/SLR");
+	}
     // Run the GetStats pass
     // note: this uses the xflux, yflux textures as scratch space.
 
@@ -1762,6 +1783,10 @@ void ShallowWaterEngine::resetTimestep(float realworld_dt, float elapsed_time)
 										sqrt(sqrt(initSetting.epsilon)) :
 										initSetting.graphics.surfaceShading.drylandDepthOfInundation);
 
+		SetSettingMax("Tide/Surge/SLR", initSetting.tideSurgeSLR.maxValue);
+		SetSettingMin("Tide/Surge/SLR", initSetting.tideSurgeSLR.minValue);
+		SetSetting("Tide/Surge/SLR", initSetting.tideSurgeSLR.setValue);
+
 		if(max_depth != 0) colormap_initialized = true;
 	}
 
@@ -1838,8 +1863,6 @@ void ShallowWaterEngine::resetTimestep(float realworld_dt, float elapsed_time)
 	
 		context->CopySubresourceRegion(m_psSimTexture[1 - sim_idx].get(), 0, col, 0, 0, st_psTriDigTexture_D1x[countOfMatricesXdirection - 1].get(), 0, &src_box); 
 	}
-
-	
 } 
 
 float lerp_coef(float x0, float x, float x1)
@@ -2194,10 +2217,10 @@ void ShallowWaterEngine::render(ID3D11RenderTargetView *render_target_view)
 
     ID3D11ShaderResourceView * heightfield_tex = m_psTerrainTextureView.get();
     ID3D11ShaderResourceView * water_tex = m_psSimTextureView[sim_idx].get();   // {w, hu, hv, unused}
-    ID3D11ShaderResourceView * normal_tex = m_psSimTextureView[6].get();     // {nX, nY, nZ, wasInundated}
+    ID3D11ShaderResourceView * normal_tex = m_psSimTextureView[6].get();     // {nX, nY, nZ, unused}
     ID3D11ShaderResourceView * skybox_tex = m_psSkyboxView.get();
     ID3D11ShaderResourceView * grass_tex = m_psGrassTextureView.get();
-	ID3D11ShaderResourceView * inundation_tex = m_psInundationTextureView.get();
+	ID3D11ShaderResourceView * auxiliary1_tex = m_psAuxiliary1TextureView.get();
 	ID3D11ShaderResourceView * grid_tex = m_psGridTextureView.get();
 	ID3D11ShaderResourceView * colormap_tex = m_psColormapTextureView.get();
     ID3D11SamplerState * linear_sampler = m_psLinearSamplerState.get();
@@ -2219,7 +2242,7 @@ void ShallowWaterEngine::render(ID3D11RenderTargetView *render_target_view)
     context->VSSetShaderResources(0, 1, &heightfield_tex);
     context->VSSetShaderResources(1, 1, &water_tex);
     context->VSSetShaderResources(2, 1, &normal_tex);
-	context->VSSetShaderResources(3, 1, &inundation_tex);
+	context->VSSetShaderResources(4, 1, &auxiliary1_tex);
     
     ID3D11Buffer * cst_buf = m_psConstantBuffer.get();
     context->VSSetConstantBuffers(0, 1, &cst_buf);
@@ -2332,7 +2355,7 @@ void ShallowWaterEngine::createShadersAndInputLayout()
 	
     CreatePixelShader(device, compute_hlsl.c_str(), "GetStats", m_psGetStatsPixelShader);
 	
-	createBoundaryShaders();
+	createBoundaryShadersInit();
     
     D3D11_INPUT_ELEMENT_DESC sim_layout[] = {
         { "TEX_IDX", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 }
@@ -2349,7 +2372,7 @@ void ShallowWaterEngine::createShadersAndInputLayout()
     m_psSimInputLayout.reset(input_layout);
 }
 
-void ShallowWaterEngine::createBoundaryShaders(){
+void ShallowWaterEngine::createBoundaryShadersInit(){
 
 
 	std::string compute_hlsl = initSetting.exePath + "/shaders/compute.hlsl";
@@ -2372,6 +2395,56 @@ void ShallowWaterEngine::createBoundaryShaders(){
 	if(initSetting.westBoundary.hasChanged){
 		std::string westBoundary = "WestBoundary" + initSetting.westBoundary.type;
 		CreatePixelShader(device, compute_hlsl.c_str(), westBoundary.c_str(), m_psBoundaryPixelShader[3]);
+		initSetting.westBoundary.hasChanged = false;
+	}
+}
+
+void ShallowWaterEngine::createBoundaryShaders(){
+
+	std::string compute_hlsl = initSetting.exePath + "/shaders/compute.hlsl";
+
+	if(initSetting.northBoundary.hasChanged){
+		std::string northBoundary = "NorthBoundary" + initSetting.northBoundary.type;
+		CreatePixelShader(device, compute_hlsl.c_str(), northBoundary.c_str(), m_psBoundaryPixelShader[0]);
+		
+		if (initSetting.northBoundary.type == "IrregularWaves"){
+			fillIrregularWavesDataConstantBuffer ("NORTH");  
+		}
+		//fillUniformTimeSeriesMainMemoryBuffer ();
+
+		initSetting.northBoundary.hasChanged = false;
+	}
+	if(initSetting.eastBoundary.hasChanged){
+		std::string eastBoundary = "EastBoundary" + initSetting.eastBoundary.type;
+		CreatePixelShader(device, compute_hlsl.c_str(), eastBoundary.c_str(), m_psBoundaryPixelShader[1]);
+
+		if (initSetting.eastBoundary.type == "IrregularWaves"){
+			fillIrregularWavesDataConstantBuffer ("EAST");  
+		}
+		//fillUniformTimeSeriesMainMemoryBuffer ();
+
+		initSetting.eastBoundary.hasChanged = false;
+	}
+	if(initSetting.southBoundary.hasChanged){
+		std::string southBoundary = "SouthBoundary" + initSetting.southBoundary.type;
+		CreatePixelShader(device, compute_hlsl.c_str(), southBoundary.c_str(), m_psBoundaryPixelShader[2]);
+
+		if (initSetting.southBoundary.type == "IrregularWaves"){
+			fillIrregularWavesDataConstantBuffer ("SOUTH");  
+		}
+		//fillUniformTimeSeriesMainMemoryBuffer ();
+
+		initSetting.southBoundary.hasChanged = false;
+	}
+	if(initSetting.westBoundary.hasChanged){
+		std::string westBoundary = "WestBoundary" + initSetting.westBoundary.type;
+		CreatePixelShader(device, compute_hlsl.c_str(), westBoundary.c_str(), m_psBoundaryPixelShader[3]);
+		
+		if (initSetting.westBoundary.type == "IrregularWaves"){
+			fillIrregularWavesDataConstantBuffer ("WEST");  
+		}
+		//fillUniformTimeSeriesMainMemoryBuffer ();		
+		
 		initSetting.westBoundary.hasChanged = false;
 	}
 }
@@ -2516,9 +2589,19 @@ void ShallowWaterEngine::createTerrainTexture()
 				  0,  // initial data
 				  DXGI_FORMAT_R32G32B32A32_FLOAT,
 				  false,  // staging
-				  m_psInundationTexture,
-				  &m_psInundationTextureView,
-				  &m_psInundationRenderTargetView);
+				  m_psAuxiliary1Texture,
+				  &m_psAuxiliary1TextureView,
+				  &m_psAuxiliary1RenderTargetView);
+
+	CreateTexture(device,
+				  GetIntSetting("mesh_size_x") + 4,
+				  GetIntSetting("mesh_size_y") + 4,
+				  0,  // initial data
+				  DXGI_FORMAT_R32G32B32A32_FLOAT,
+				  false,  // staging
+				  m_psAuxiliary2Texture,
+				  &m_psAuxiliary2TextureView,
+				  &m_psAuxiliary2RenderTargetView);
 }
 
 
@@ -3264,7 +3347,8 @@ void ShallowWaterEngine::fillTerrainTexture()
                                    (nx+4) * 12,
                                    0); // slab pitch
 
-		context->CopyResource(m_psInundationTexture.get(), 0); 
+		context->CopyResource(m_psAuxiliary1Texture.get(), st_psTriDigTexture_D1x[0].get()); 
+		context->CopyResource(m_psAuxiliary2Texture.get(), st_psTriDigTexture_D1x[0].get());
 
         // Loop through and change h values back into w values
         for (int j = 0; j < ny+4; ++j) {
@@ -3312,7 +3396,9 @@ void ShallowWaterEngine::fillTerrainTextureLite()
                                (nx+4) * 12,
                                0); // slab pitch
 
-		context->CopyResource(m_psInundationTexture.get(), 0); 
+	context->CopyResource(m_psAuxiliary1Texture.get(), st_psTriDigTexture_D1x[0].get());
+	context->CopyResource(m_psAuxiliary2Texture.get(), st_psTriDigTexture_D1x[0].get());
+		
     
     // need to re-bootstrap
     bootstrap_needed = true;
@@ -3373,9 +3459,6 @@ void ShallowWaterEngine::createConstantBuffers()
     }
     m_psIrregularWavesColumnRowConstBuffer.reset(pBuffer);
 
-	
-	
-	
 	bd.ByteWidth = RoundUpTo16(sizeof(SolitaryWaveConstBuffer));
     hr = device->CreateBuffer(&bd, 0, &pBuffer);
     if (FAILED(hr)) {
@@ -3383,7 +3466,7 @@ void ShallowWaterEngine::createConstantBuffers()
     }
     m_psSolitaryWaveConstantBuffer.reset(pBuffer);	
 	
-	fillIrregularWavesDataConstantBuffer ();  
+	fillIrregularWavesDataConstantBuffer ("ALL");  
 	fillUniformTimeSeriesMainMemoryBuffer ();
 }
 
@@ -3469,12 +3552,242 @@ void skipCommentsInFileStream (std::ifstream &in){
 }
 
 
-void ShallowWaterEngine::fillIrregularWavesDataConstantBuffer ()
+std::string ShallowWaterEngine::generateSpectrumWaves(IrregularWaveSpectrumSetting inSpectrum, std::string boundarySide)
 {
-	IrregularWavesDataConstBuffer irr_cBuffer;
+	if(inSpectrum.depth_at_source == 0 || inSpectrum.peak_period == 0 || inSpectrum.significant_waveheight == 0){
+		return "NA";
+	}
+	// function file to create random wave input files (directional, TMA) for COULWAVE
+	// Hs_o=2.; %Hmo at source depth in m
+	// Tp=12; % peak period in s
+	// Thetap=0;  %mean wave direction, relative to source line
+	float gamma_s = 3.3f;  // frequency spreading factor for TMA spectrum
+	float spread_o = 50.0f;  // direction spreading factor
+	//float h = 10.0f;  // depth at source region in m
+	float del_f = 0.005f; // frequency increment, time series will repeat at 1/del_f seconds
+	float del_t = 5;  // direction increment
+	
+	float f_peak = 1/inSpectrum.peak_period;
+	float Hs = inSpectrum.significant_waveheight;
+	float g = GetSetting("gravity");
+	float h = inSpectrum.depth_at_source;
+	Hs = std::min(Hs, h * 0.5f);  // limit wave height to 1/2 of water depth at generation
+	float Hs_old = Hs;
 
-	if (initSetting.westBoundary.type == "IrregularWaves"){
-		std::ifstream in ((initSetting.westIrrWaveFileName).c_str());
+   // Shalllow water TMA spectrum
+    float beta = 0.0624f/(0.23f+0.033f * gamma_s - 0.185f / (1.9f + gamma_s));
+    
+    // Calculate Energy Spectrum to Very Large Limits
+	float f_start = std::max(del_f, f_peak - 5 * del_f);
+    float f_end = f_peak + 5 * del_f;
+
+	std::vector<float> f_array;
+	float current_value = f_start;
+    while(current_value <= f_end) {
+        f_array.push_back(current_value);
+        current_value += del_f;
+    }
+
+	std::vector<float> E_array;
+	std::vector<std::vector<float>> D_matrix;
+	for (int i = 0; i < f_array.size(); ++i){
+		
+		float omega_h = 2.0f * 3.1415f * f_array[i] * sqrt(h / g);
+		float phiK = 0;
+		if (omega_h > 2.0f){
+			phiK = 1.0f;
+		} else if (omega_h < 1) {
+			phiK = 0.5 * omega_h;
+		} else {
+			phiK = 1.0f - 0.5f * (2.0f - omega_h) * (2.0f - omega_h);
+		}
+
+		float sigma = 0;       
+		if (f_array[i] <= f_peak){
+            sigma = 0.07f;
+		} else {
+            sigma = 0.09f;
+		}
+
+        float frat = f_array[i] / f_peak;
+		E_array.push_back(beta * Hs * Hs / (f_array[i] * pow(frat, 4))
+							* exp(-1.25f / pow(frat, 4))
+							* pow(gamma_s, (exp(-(frat - 1.0f) * (frat - 1.0f) / (2.0f * sigma * sigma)))));  // energy density
+	}
+	    
+	// Directional Spectrum to Very Large Limits
+	std::vector<float> theta_array;
+	current_value = -20 + inSpectrum.mean_theta;
+	while( current_value <= 20 + inSpectrum.mean_theta) {
+        theta_array.push_back(current_value);
+        current_value += del_t;
+    }
+
+	for (int i = 0; i < f_array.size(); ++i){
+		float theta_peak = inSpectrum.mean_theta;  // (degrees) Input some function here to determine the mean wave direction as a function of frequency
+		float f_rat = f_array[i] / f_peak; 
+		float spread = 0;
+
+		if (f_rat < 1.0f){
+			spread = spread_o * pow(f_rat, 5);
+		} else {
+			spread = spread_o * pow(f_rat, -2.5f);
+		}
+		
+		
+		
+		float beta_s = pow(2, (2 * spread - 1)) / 3.1415f * exp(2*boost::math::lgamma<float>(spread+1) - boost::math::lgamma<float>(2*spread+1));
+		std::vector<float> Temp_array;
+		for (int j = 0; j < theta_array.size(); ++j){
+
+			Temp_array.push_back(beta_s * pow(cos(0.5f * ( (theta_array[j] - theta_peak) * 3.1415f / 180.0f)), (2.0f * spread)));  // Directional function
+		}
+		D_matrix.push_back(Temp_array);
+	}   
+    
+	for (int i = 0; i < f_array.size(); ++i){
+		float sum = 0;
+		for (int j = 0; j < theta_array.size(); ++j){
+			sum = sum + D_matrix[i][j];  // Directional Energy Density function
+		}
+		for (int j = 0; j < theta_array.size(); ++j){
+			D_matrix[i][j] = D_matrix[i][j] / sum;
+		}
+		
+	}
+	    
+	std::vector<std::vector<float>> E_D_matrix;
+
+	for (int i = 0; i < f_array.size(); ++i){
+		std::vector<float> Temp_array;
+		for (int j = 0; j < theta_array.size(); ++j){
+			Temp_array.push_back(E_array[i] * D_matrix[i][j]);  // Directional Energy Density function
+		}
+		E_D_matrix.push_back(Temp_array);
+	}
+	  
+
+
+	float Hmo = 0;
+
+	for (int i = 0; i < f_array.size(); ++i){
+		for (int j = 0; j < theta_array.size(); ++j){
+			if (i == 0) {
+				del_f = (f_array[2] - f_array[1]);
+			} else if (i == f_array.size() - 1){
+				del_f = (f_array[f_array.size() - 1] - f_array[f_array.size() - 2]);
+			} else {
+				del_f = (f_array[i+1] - f_array[i]) / 2.0f + (f_array[i] - f_array[i-1]) / 2.0f;
+			}
+			Hmo = Hmo + E_D_matrix[i][j] * del_f;
+		}
+	}
+
+	float Hmo_full_spectrum = sqrt(Hmo) * 4.004f;
+	
+	// Truncate ends of spectrum at values of 5% of the max
+	float trunc = 0.05;
+/*
+	%DO NOT CHANGE ANYTHING BELOW THIS LINE
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+*/
+
+	int j = floor(theta_array.size() / 2.0f + + 0.5f); // + 0.5 turns the floor function to round.
+	std::vector<float> f_num;
+	std::vector<std::vector<float>> E_D_num;
+	int count = 0;
+
+	if (Hmo == 0){
+		f_num.push_back(f_peak);
+		float E_num = 0;
+		float amp_max = 0;
+		count = 1;
+	} else {
+		float max_E = f_array.size() > 0 ? E_D_matrix[0][j] : 0;
+		for (int i = 0; i < f_array.size(); ++i){
+			max_E = std::max(max_E, E_D_matrix[i][j]);
+		}
+		float min_E = trunc * max_E;
+		count = 0;
+		for (int i = 0; i < f_array.size(); ++i){
+			if (E_D_matrix[i][j] > min_E){
+				count = count + 1;
+				f_num.push_back(f_array[i]);
+				E_D_num.push_back (E_D_matrix[i]);
+			}
+		}
+	}
+
+
+
+	/////////////
+
+	time_t timer = time(0);
+	struct tm * now = localtime(&timer);
+	std::ostringstream s;
+	s << now->tm_year + 1900 << "-" << now->tm_mon + 1 << "-" << now->tm_mday << " " << now->tm_hour << "-" << now->tm_min << "-" << now->tm_sec;
+	
+
+	std::string fileName = initSetting.logPath + "/" + s.str() + "-Irr" + boundarySide + ".txt";	
+	std::ofstream myfile;
+	if (!myfile.is_open()){
+		myfile.open (fileName.c_str(),std::ios::out | std::ios::app);
+	}
+
+	myfile << "[Hs] " << inSpectrum.significant_waveheight << "\n";
+	myfile << "[Tp] " << inSpectrum.peak_period << "\n";
+	myfile << "[Theta_p] " << inSpectrum.mean_theta << "\n";
+	myfile << "[h_source] " << inSpectrum.depth_at_source << "\n";
+	myfile << "\n" << "\n";
+	myfile << "# This file contains the sinewaves generated for the spectrum given above." << "\n\n";
+	myfile << "[NumberOfWaves] " << count*theta_array.size() << "\n";	
+	myfile << "\n" << "\n";
+	myfile << "====================================" << "\n";
+
+	srand (time(0));
+	float Hmo_truncated_spectrum = 0;
+	float cur_ind = 0;
+	for (int i = 0; i < count; ++i){
+		if (i == 0){
+			del_f = (f_array[1] - f_array[0]);
+		} else if (i == count - 1) {
+			del_f = (f_array[count - 1] - f_array[count - 2]);
+		} else { 
+			del_f = (f_array[i + 1] - f_array[i]) / 2.0f + (f_array[i] - f_array[i - 1]) / 2.0f;
+		}
+
+		for (int j = 0; j < theta_array.size(); ++j){ 
+			float amp = sqrt(2 * E_D_num[i][j] * del_f);
+			++cur_ind;
+			
+			float period = 1 / f_num[i];
+			float theta = theta_array[j] * 3.1415 / 180.0f;
+
+			float rand_between_0_and_1 = (rand()%10000) / 10000.0f;
+			float phase = rand_between_0_and_1 * 2 * 3.1415;
+			myfile << amp << "\t" << period << "\t" << theta << "\t" << phase << "\n";
+		} 
+	}
+	myfile.close();
+
+	return fileName;
+}
+void ShallowWaterEngine::fillIrregularWavesDataConstantBuffer (std::string boundarySide)
+{
+
+	IrregularWavesDataConstBuffer irr_cBuffer;
+	bool doThisSide = false; // This could be chosen from an enum.
+
+	doThisSide = boundarySide == "ALL" || boundarySide == "WEST"; 
+	if (doThisSide && initSetting.westBoundary.type == "IrregularWaves"){
+		std::string irrFilePath = "";
+		if(initSetting.westBoundary.IrrWaveSpectrumSetting.useSpectrum){
+			irrFilePath = generateSpectrumWaves(initSetting.westBoundary.IrrWaveSpectrumSetting, "West");
+		} else {
+			irrFilePath = initSetting.westIrrWaveFileName;
+		}
+		
+		std::ifstream in (irrFilePath.c_str());
 		irr_cBuffer.numberOfWavesWest = getNumberOfWavesFromFileStream (in);
 		int count = 0;
 		while (in && count <= irr_cBuffer.numberOfWavesWest) {
@@ -3483,8 +3796,16 @@ void ShallowWaterEngine::fillIrregularWavesDataConstantBuffer ()
 		}
 	}
 
-	if (initSetting.eastBoundary.type == "IrregularWaves"){
-		std::ifstream in ((initSetting.eastIrrWaveFileName).c_str());
+	doThisSide = boundarySide == "ALL" || boundarySide == "EAST"; 
+	if (doThisSide && initSetting.eastBoundary.type == "IrregularWaves"){
+		std::string irrFilePath = "";
+		if(initSetting.eastBoundary.IrrWaveSpectrumSetting.useSpectrum){
+			irrFilePath = generateSpectrumWaves(initSetting.eastBoundary.IrrWaveSpectrumSetting, "East");
+		} else {
+			irrFilePath = initSetting.eastIrrWaveFileName;
+		}
+		
+		std::ifstream in (irrFilePath.c_str());
 		irr_cBuffer.numberOfWavesEast = getNumberOfWavesFromFileStream (in);
 		int count = 0;
 		while (in && count <= irr_cBuffer.numberOfWavesEast) {
@@ -3493,8 +3814,16 @@ void ShallowWaterEngine::fillIrregularWavesDataConstantBuffer ()
 		}
 	}
 
-	if (initSetting.southBoundary.type == "IrregularWaves"){
-		std::ifstream in ((initSetting.southIrrWaveFileName).c_str());
+	doThisSide = boundarySide == "ALL" || boundarySide == "SOUTH"; 
+	if (doThisSide && initSetting.southBoundary.type == "IrregularWaves"){
+		std::string irrFilePath = "";
+		if(initSetting.southBoundary.IrrWaveSpectrumSetting.useSpectrum){
+			irrFilePath = generateSpectrumWaves(initSetting.southBoundary.IrrWaveSpectrumSetting, "South");
+		} else {
+			irrFilePath = initSetting.southIrrWaveFileName;
+		}
+		
+		std::ifstream in (irrFilePath.c_str());
 		irr_cBuffer.numberOfWavesSouth = getNumberOfWavesFromFileStream (in);
 		int count = 0;
 		while (in && count <= irr_cBuffer.numberOfWavesSouth) {
@@ -3503,8 +3832,16 @@ void ShallowWaterEngine::fillIrregularWavesDataConstantBuffer ()
 		}
 	}
 
-	if (initSetting.northBoundary.type == "IrregularWaves"){
-		std::ifstream in ((initSetting.northIrrWaveFileName).c_str());
+	doThisSide = boundarySide == "ALL" || boundarySide == "NORTH"; 
+	if (doThisSide && initSetting.northBoundary.type == "IrregularWaves"){
+		std::string irrFilePath = "";
+		if(initSetting.northBoundary.IrrWaveSpectrumSetting.useSpectrum){
+			irrFilePath = generateSpectrumWaves(initSetting.northBoundary.IrrWaveSpectrumSetting, "North");
+		} else {
+			irrFilePath = initSetting.northIrrWaveFileName;
+		}
+		
+		std::ifstream in (irrFilePath.c_str());
 		irr_cBuffer.numberOfWavesNorth = getNumberOfWavesFromFileStream (in);
 		int count = 0;
 		while (in && count <= irr_cBuffer.numberOfWavesNorth) {
@@ -3601,6 +3938,10 @@ void ShallowWaterEngine::fillConstantBuffers()
 	const float terrain_tex_length = L/(ny-1) * mesh_size; // width of the entire BMP in metres
 
 	cb.isGridOn  = GetIntSetting("Grid");
+
+	cb.is_dissipation_threshold_on  = GetIntSetting("Dissipation Intensity");
+	cb.dissipation_threshold  = GetSetting("Dissipation Threshold");
+	
 	cb.terrain_tex_scale = XMFLOAT2(W / (nx-1) / terrain_tex_width, L / (ny-1) / terrain_tex_length);
     cb.world_to_grass_tex_x = 1.0f / terrain_tex_width;
     cb.world_to_grass_tex_y = 1.0f / terrain_tex_length;
@@ -4501,6 +4842,88 @@ void ShallowWaterEngine::raiseLowerTerrain(float world_x, float world_y, float d
 
 	createTridiagonalCoefTextures();
 }
+
+
+void ShallowWaterEngine::shiftTerrainSlider(float shift_up)
+{
+    // Do this on CPU as it is the easiest way -- just want to get this code written
+    // quickly, don't care about efficiency at this point :)
+    const int nx = GetIntSetting("mesh_size_x");
+    const int ny = GetIntSetting("mesh_size_y");
+ 
+/////////////
+
+    context->CopySubresourceRegion(m_psFullSizeStagingTexture.get(),
+                                   0,  // subresource
+                                   0,  // dest x
+                                   0,  // dest y
+                                   0,  // dest z
+                                   m_psSimTexture[sim_idx].get(),  // src texture -- current state
+                                   0,  // subresource
+                                   0);
+	MapTexture m(*context, *m_psFullSizeStagingTexture);
+
+
+    // We are going to update the in-memory copy of BottomTexture and
+    // upload it to the GPU via UpdateSubresource.
+
+    for (int iy = 0; iy < ny + 4; ++iy) {
+
+        BottomEntry * row_ptr_b = &g_bottom[iy * (nx+4)];
+        TerrainEntry * row_ptr_t = &g_terrain_heightfield[iy * (nx+4)];
+		char * row_ptr_w = static_cast<char*>(m.msr.pData) + m.msr.RowPitch * iy;
+        for (int ix = 0; ix < nx + 4; ++ix) {
+            
+			BottomEntry * ptr_b = row_ptr_b + ix;
+			float * ptr_w = reinterpret_cast<float*>(row_ptr_w) + 4 * ix;
+			TerrainEntry * ptr_t = row_ptr_t + ix;
+			
+			if ((*ptr_w) - ptr_b->BA < 0.01){
+				if (ptr_b->BA < initSetting.stillWaterElevation){
+					*ptr_w = initSetting.stillWaterElevation;
+				} else{
+					*ptr_w += shift_up;
+				}
+			}
+			
+			ptr_b->BX += shift_up;
+			ptr_b->BY += shift_up;
+			ptr_b->BA += shift_up;
+
+			
+			ptr_t->B += shift_up;
+
+
+        }
+    }
+
+    context->UpdateSubresource(m_psBottomTexture.get(),  // dest texture
+                               0,  // subresource
+                               0,  // dest box
+                               &g_bottom[0],  // src data
+                               (nx+4) * 3 * sizeof(float),   // row pitch
+                               0);  // depth pitch (unused) 
+
+    context->UpdateSubresource(m_psTerrainTexture.get(),  // dest texture
+                               0,  // subresource
+                               0,  // dest box
+                               &g_terrain_heightfield[0],  // src data
+                               (nx+4) * 3 * sizeof(float),   // row pitch
+                               0);  // depth pitch (unused)
+
+    context->CopySubresourceRegion(m_psSimTexture[sim_idx].get(),  // dest texture
+                               0,  // subresource
+                               0,  // dest x
+                               0,  // dest y
+                               0,  // dest z
+                               m_psFullSizeStagingTexture.get(),  // src texture
+                               0,  // subresource
+                               0);  
+
+	createTridiagonalCoefTextures();
+}
+
+
 
 void ShallowWaterEngine::setupMousePicking()
 {

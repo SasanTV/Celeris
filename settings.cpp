@@ -105,8 +105,8 @@ Setting g_settings[] =
         {""},
 		{ "valley_length", "m", S_SLIDER, R_TERRAIN, 10, 1000 },
         { "valley_width", "m", S_SLIDER, R_TERRAIN, 10, 1000 },
-		{ "sea_level", "m", S_SLIDER, R_NONE, 0, 15 },
-        
+		//{ "sea_level", "m", S_SLIDER, R_NONE, 0, 15 },
+        { "Tide/Surge/SLR", "", S_SLIDER, R_NONE, -1, 1 },
         //{ "solid_walls", "", S_CHECKBOX, R_NONE, 0, 1 },
         //{ "inflow_width", "m", S_SLIDER, R_NONE, 0, 100 },
 		//{ "inflow_height", "m", S_SLIDER, R_NONE, 0, 10 },
@@ -205,11 +205,16 @@ Setting g_settings[] =
 		{""},
 		{ "width num", "", S_TEXTFIELD, R_NONE, 10, 1200, 0},
 		{ "b. sea level", "", S_TEXTFIELD, R_NONE, 10, 1200, 0},
+		{""},
 		{ "wave amplitude", "", S_TEXTFIELD, R_NONE, 10, 1200, 0},
 		{ "wave period", "", S_TEXTFIELD, R_NONE, 10, 1200, 0},
 		{ "wave direction", "", S_TEXTFIELD, R_NONE, 10, 1200, 0},
-		
-		
+		{""},
+		{ "Spectrum Wavemaker", "", S_CHECKBOX, R_NONE, 0, 1 },
+		{ "significant waveheight", "", S_TEXTFIELD, R_NONE, 10, 1200, 0},
+		{ "peak period", "", S_TEXTFIELD, R_NONE, 10, 1200, 0},
+		{ "mean direction", "", S_TEXTFIELD, R_NONE, 10, 1200, 0},
+		{ "depth at source", "", S_TEXTFIELD, R_NONE, 10, 1200, 0},
 
         // GRAPHICS TAB
 
@@ -229,6 +234,9 @@ Setting g_settings[] =
 		{""},
 		{ "Grid", "", S_CHECKBOX, R_NONE, 0, 1 },
 		{ "Grid Scale", "", S_SLIDER, R_NONE, 0.5, 20 },
+		{""},
+		{ "Dissipation Intensity", "", S_CHECKBOX, R_NONE, 0, 1 },
+		{ "Dissipation Threshold", "", S_SLIDER, R_NONE, 0.0, 0.75 },
 		{""},
 		{ "Inundated Area", "", S_CHECKBOX, R_NONE, 0, 1 },
 		{ "Flow Depth", "", S_SLIDER, R_NONE, 0.0001, 0.3 },

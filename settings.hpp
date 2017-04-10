@@ -119,6 +119,15 @@ struct SineWaveSetting {
 	SineWaveSetting (): amplitude(0), period(0), theta(0){}
 };
 
+struct IrregularWaveSpectrumSetting {
+	bool useSpectrum;
+	float significant_waveheight;
+	float peak_period;
+	float mean_theta; //angle in radians to x direction.
+	float depth_at_source;
+	IrregularWaveSpectrumSetting (): significant_waveheight(0), peak_period(0), mean_theta(0), depth_at_source(0), useSpectrum(false){}
+};
+
 struct FlowParameters {
 	float w;
 	float hu;
@@ -142,6 +151,7 @@ struct BoundarySetting {
 	int width; //number of cells in boundary.
 	float waterLevel; // this can be sea level, or a control depth at river output. It is measured from datum.
 	SineWaveSetting sineWaveSetting;
+	IrregularWaveSpectrumSetting IrrWaveSpectrumSetting;
 	UniformTimeSeries uniformTimeSeries;
 //	FlowParameters ForcedInput;
 	bool hasChanged;
@@ -263,6 +273,18 @@ struct GraphicsSetting{
 	}
 };
 
+struct TideSurgeSLR{
+	bool autoValue;
+	float maxValue, minValue, setValue;
+	TideSurgeSLR(){
+		autoValue = true;
+		maxValue  = +1;
+		minValue  = -1;
+		setValue  =  0;
+	}
+
+};
+
 struct InitSetting {
 	
 	//name
@@ -277,7 +299,8 @@ struct InitSetting {
 	std::string southIrrWaveFileName, northIrrWaveFileName;
 
 	bool rereadBathy;
-
+	TideSurgeSLR tideSurgeSLR;
+	
 	std::string logPath;
 	
 	//Model
