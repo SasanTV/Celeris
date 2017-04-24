@@ -86,6 +86,9 @@ cbuffer SimConstBuffer : register( b0 )
     float friction;              // m s^-1
 	int isManning;
 	float seaLevel;
+
+	float dissipation_threshold; // For visualization purposes, not simulation.
+	float whiteWaterDecayRate; // For visualization purposes, not simulation.
 };
 
 cbuffer SolitaryWave : register( b0 )
@@ -454,7 +457,12 @@ PASS_1_OUTPUT Pass1(VS_OUTPUT input)
 	float maxInundatedDepth = max((h.r + h.g + h.b + h.a)/4.0f, txAuxiliary1.Load(idx).r);
 	
     output.n = float4(normal.x, normal.y, normal.z, 0);
-    output.aux = float4(maxInundatedDepth, 0, max_sd2, 0);
+	
+	float breaking_white = txAuxiliary1.Load(idx).a;
+	if (max_sd2 > dissipation_threshold){
+		breaking_white = 1.0f;
+	}
+    output.aux = float4(maxInundatedDepth, 0, max_sd2, breaking_white);
     return output;
 }
 
@@ -534,8 +542,12 @@ PASS_2_OUTPUT Pass2( VS_OUTPUT input )
                                    h_here.r * (v_here.r * v_here.r + half_g * h_here.r),
                                    hS_north * vS_north - h_here.r * v_here.r);
 	
+	float breaking_white = txAuxiliary2.Load(idx).a;
+	
+	breaking_white *= pow(abs(whiteWaterDecayRate),dt);
+	
 	// max_sd2 (i.e. b) varies in every time step, unlike r0
-	output.auxiliary = float4(txAuxiliary2.Load(idx).r, 0, txAuxiliary2.Load(idx).b, 0); 
+	output.auxiliary = float4(txAuxiliary2.Load(idx).r, 0, txAuxiliary2.Load(idx).b, breaking_white); 
     return output;
 }
 

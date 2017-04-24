@@ -237,6 +237,7 @@ Setting g_settings[] =
 		{""},
 		{ "Dissipation Intensity", "", S_CHECKBOX, R_NONE, 0, 1 },
 		{ "Dissipation Threshold", "", S_SLIDER, R_NONE, 0.0, 0.75 },
+		{ "Whitewater Decay", "", S_SLIDER, R_NONE, 0, 1.0 },
 		{""},
 		{ "Inundated Area", "", S_CHECKBOX, R_NONE, 0, 1 },
 		{ "Flow Depth", "", S_SLIDER, R_NONE, 0.0001, 0.3 },

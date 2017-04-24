@@ -172,7 +172,7 @@ struct WATER_PS_INPUT {
     float2 world_pos : WORLD_XY_POS;   // world space
     float3 terrain_normal : TERRAIN_NORMAL;
 	float B : BOTTOM_HEIGHT;
-	float4 auxiliary : INUNDATED;
+	float4 auxiliary : AUXILIARY;
 };
 
 struct SKYBOX_PS_INPUT {
@@ -271,7 +271,7 @@ WATER_PS_INPUT WaterVertexShader( VS_INPUT input )
     const float3 ground_tex = txHeightfield.Load(idx);
     const float B =  ground_tex.r;
 	output.B = B;
-	output.auxiliary = float4(txAuxiliary1.Load(idx).r, 0, txAuxiliary1.Load(idx).b, 0);
+	output.auxiliary = float4(txAuxiliary1.Load(idx).r, txAuxiliary1.Load(idx).g, txAuxiliary1.Load(idx).b, txAuxiliary1.Load(idx).a);
 
     const float3 ground_normal = normalize(float3(-ground_tex.g, -ground_tex.b, 1));
     
@@ -354,6 +354,15 @@ float3 FromLinear(float3 lin)
 }
 
 
+float pseudoRandom( float2 p )
+{
+  // We need irrationals for pseudo randomness.
+  // Most (all?) known transcendental numbers will (generally) work.
+  const float2 r = float2(
+    23.1406926327792690,  // e^pi (Gelfond's constant)
+     2.6651441426902251); // 2^sqrt(2) (Gelfond–Schneider constant)
+  return frac( abs(cos( ( 123456789. % 1e-7 + 256. * dot(p,r) ) ) ) );  
+}
    
 
 // Pixel Shader for Water
@@ -361,16 +370,24 @@ float3 FromLinear(float3 lin)
 float4 WaterPixelShader( WATER_PS_INPUT input ) : SV_Target
 {
     // approximate Fresnel factor
-	
+	float3 normal_vec = input.normal;
+/*	
+	if (is_dissipation_threshold_on){
+		int2 tempCoord = int2(input.tex_coord.x, input.tex_coord.y);
+		float2 randomSeed = txGrass.Sample(samLinear, tempCoord).rg;
+		normal_vec *= (0.5f + (pseudoRandom (float2(randomSeed)) * input.auxiliary.a)* 0.5f);
+	//		normal_vec = normalize(normal_vec);
+	}
+*/
     // (this is the percentage that reflects, as opposed to transmits)
-    float fresnel = (1-fresnel_coeff) + fresnel_coeff * pow(max(0, 1 - dot(input.eye, input.normal)), fresnel_exponent);
+    float fresnel = (1-fresnel_coeff) + fresnel_coeff * pow(max(0, 1 - dot(input.eye, normal_vec)), fresnel_exponent);
 	
 	// this avoids jittering of water graphics artifact on land.
 	if (input.water_depth < min(1e-10, sqrt_sqrt_epsilon)) {
 		fresnel = 0;
 	}
     // reflected light
-    float3 reflection_dir = reflect(-input.eye, input.normal);
+    float3 reflection_dir = reflect(-input.eye, normal_vec);
     float3 reflect_col; 
 	if (water_shading == 0){
 		reflect_col = txSkybox.Sample(samLinear, reflection_dir).rgb;
@@ -398,8 +415,12 @@ float4 WaterPixelShader( WATER_PS_INPUT input ) : SV_Target
 	}
 
 	// to visualize breaking
-	if (is_dissipation_threshold_on && input.auxiliary.b > dissipation_threshold){
+	/*if (is_dissipation_threshold_on && input.auxiliary.b > dissipation_threshold){
 		reflect_col = float3(1,1,1);
+	}*/
+	if (is_dissipation_threshold_on){
+		float greyScale = input.auxiliary.a ;
+		reflect_col += float3(greyScale, greyScale, greyScale);
 	}
     //specular
     reflect_col += specular_intensity * pow(max(0,dot(reflection_dir, light_dir)), specular_exponent);
@@ -407,7 +428,7 @@ float4 WaterPixelShader( WATER_PS_INPUT input ) : SV_Target
     // refracted light
     float3 refract_col;
     float attenuation_factor;
-    float3 refract_dir = refract( -input.eye, input.normal, 1.0f / refractive_index);
+    float3 refract_dir = refract( -input.eye, normal_vec, 1.0f / refractive_index);
 
     if (refract_dir.z > 0) {
         // refracted ray goes up into the sky
@@ -442,6 +463,10 @@ float4 WaterPixelShader( WATER_PS_INPUT input ) : SV_Target
 		refract_col = TerrainColour(refract_col, input.terrain_normal);  // apply terrain lighting (approximation)
         attenuation_factor = (1-attenuation_1) * exp(-attenuation_2 * dist);
     }
+	if (is_dissipation_threshold_on){
+		float greyScale = input.auxiliary.a ;
+		refract_col += float3(greyScale, greyScale, greyScale);
+	}
   
     // combine reflection & refraction
     float3 result = FromLinear(lerp(lerp(ToLinear(deep_col),

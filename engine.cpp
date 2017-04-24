@@ -209,6 +209,9 @@ namespace {
         float friction;  // m s^-2
 		int isManning;
 		float seaLevel;
+
+		float dissipation_threshold; // For visualization purposes, not simulation.
+		float whiteWaterDecayRate; // For visualization purposes, not simulation.
     };
 	
 
@@ -4127,6 +4130,8 @@ void ShallowWaterEngine::fillConstantBuffers()
 	sb.friction = GetSetting("friction");
 	sb.isManning= initSetting.isManning;
 	sb.seaLevel= initSetting.stillWaterElevation;
+	sb.dissipation_threshold  = GetSetting("Dissipation Threshold");
+	sb.whiteWaterDecayRate = 1.0f / (1 + 2 * GetSetting("Whitewater Decay"));
     // Now write it to the constant buffer
     context->UpdateSubresource(m_psSimConstantBuffer.get(),
                                0,  // subresource

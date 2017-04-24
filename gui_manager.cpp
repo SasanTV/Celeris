@@ -144,6 +144,7 @@ namespace {
 		SetSettingD("Grid Scale", initSetting.graphics.gridScale);
 		SetSettingD("Grid", initSetting.graphics.gridOn);
 		SetSettingD("Dissipation Threshold", 0.25);
+		SetSettingD("Whitewater Decay", 0.1);
 
     }
 }
