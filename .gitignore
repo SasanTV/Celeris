@@ -10,19 +10,28 @@
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
 
-#CML Input Examples
-Misc/
 
 # Build results
 [Dd]ebug/
 [Dd]ebugPublic/
 [Rr]eleases/
+msvc/celeris/[Rr]elease/
+msvc/coercri/[Rr]elease/
+msvc/guichan/[Rr]elease/
 x64/
 x86/
 bld/
 [Bb]in/
 [Oo]bj/
 [Ll]og/
+
+# Visual Studio Performance Sessions
+*.psess
+*.vsp
+
+# Upgrade Logs
+*.htm
+*.html
 
 # Visual Studio 2015 cache/options directory
 .vs/
@@ -54,8 +63,10 @@ artifacts/
 *.meta
 *.manifest
 *.obj
+*.iobj
 *.pch
 *.pdb
+*.ipdb
 *.pgc
 *.pgd
 *.rsp
