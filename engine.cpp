@@ -1566,6 +1566,7 @@ void ShallowWaterEngine::resetTimestep(float realworld_dt, float elapsed_time)
 
 		shift_terrain  =  GetSetting("Tide/Surge/SLR");
 	}
+
     // Run the GetStats pass
     // note: this uses the xflux, yflux textures as scratch space.
 
@@ -1652,7 +1653,8 @@ void ShallowWaterEngine::resetTimestep(float realworld_dt, float elapsed_time)
                                    m_psGetStatsTexture.get(),
                                    0,
                                    &src_box);
-                          
+
+
     float mass = 0;
     float x_mtm = 0, y_mtm = 0;
     float ke = 0, pe = 0;
@@ -1698,7 +1700,7 @@ void ShallowWaterEngine::resetTimestep(float realworld_dt, float elapsed_time)
     const float DENSITY = 1000;   // kg m^-3
     const float AREA = GetSetting("valley_width") / float(nx-1) 
         * GetSetting("valley_length") / float(ny-1);   // m^2 (area of one cell)
-
+	
     const float g = GetSetting("gravity");
     mass *= DENSITY * AREA;
     x_mtm *= DENSITY * AREA;
@@ -1711,9 +1713,8 @@ void ShallowWaterEngine::resetTimestep(float realworld_dt, float elapsed_time)
         
     // The CFL number is cfl * dt, and this must be less than safety_factor, so dt < safety_factor/cfl
     const float safety_factor = GetSetting("nominal_cfl");
-    
 
-	float max_celerity = sqrt((initSetting.stillWaterElevation - initSetting.min_bathy)*g);
+	float max_celerity = sqrt((initSetting.stillWaterElevation - initSetting.min_bathy)*GetSetting("gravity"));
     const float W = GetSetting("valley_width");
     const float L = GetSetting("valley_length");
 	const float dx = W / (nx-1);
@@ -1721,10 +1722,10 @@ void ShallowWaterEngine::resetTimestep(float realworld_dt, float elapsed_time)
 
 	//ST_: The following line is changed to avoid variational dt.
 	current_timestep = safety_factor * (std::min(dx,dy)/max_celerity); //std::min(dt * GetSetting("time_acceleration"), safety_factor / cfl);
-	
 
     // update the displays
-    SetSetting("mass", mass);
+ 
+	SetSetting("mass", mass);
     SetSetting("x_momentum", x_mtm);
     SetSetting("y_momentum", y_mtm);
     SetSetting("kinetic_energy", ke);
@@ -1733,8 +1734,9 @@ void ShallowWaterEngine::resetTimestep(float realworld_dt, float elapsed_time)
     SetSetting("max_speed", max_speed);
     SetSetting("max_depth", max_depth);
     SetSetting("max_froude_number", max_froude);
+	SetSetting("cfl_number", cfl * current_timestep);
     SetSetting("timestep", current_timestep);
-    SetSetting("cfl_number", cfl * current_timestep);
+
     
 	SetSetting("time_ratio", (total_time - old_virtual_time) / (elapsed_time - old_real_time));
 	SetSetting("virtual time", total_time);
@@ -1748,51 +1750,48 @@ void ShallowWaterEngine::resetTimestep(float realworld_dt, float elapsed_time)
 		addSolitaryWave();
 		initSetting.is_there_new_solitary_wave = false;
 	}
+}
 
 
-	static bool colormap_initialized = false;
-	if (!colormap_initialized ){
-		float surfaceColormapMin = initSetting.graphics.surfaceShading.autoColormap ? - max_depth : initSetting.graphics.surfaceShading.colormapMin;
-		float surfaceColormapMax = initSetting.graphics.surfaceShading.autoColormap ? + max_depth : initSetting.graphics.surfaceShading.colormapMax;
+// Sets min and max values for some of sliders in the GUI.
+void ShallowWaterEngine::setMinMaxSetting() {
+	float surfaceColormapMin = initSetting.graphics.surfaceShading.autoColormap ? +.25f * initSetting.min_negative_bathy : initSetting.graphics.surfaceShading.colormapMin;
+	float surfaceColormapMax = initSetting.graphics.surfaceShading.autoColormap ? -.25f * initSetting.min_negative_bathy : initSetting.graphics.surfaceShading.colormapMax;
 
-		SetSettingMax("Colormap Max", surfaceColormapMax);
-		SetSettingMax("Colormap Min", surfaceColormapMax);
-		SetSettingMin("Colormap Max", surfaceColormapMin);
-		SetSettingMin("Colormap Min", surfaceColormapMin);
-		
-		SetSetting("Colormap Max", surfaceColormapMax/2.0f);
-		SetSetting("Colormap Min", surfaceColormapMin/2.0f);
+	SetSettingMax("Colormap Max", surfaceColormapMax);
+	SetSettingMax("Colormap Min", surfaceColormapMax);
+	SetSettingMin("Colormap Max", surfaceColormapMin);
+	SetSettingMin("Colormap Min", surfaceColormapMin);
 
-		SetSettingMax("Colormap Max ",  initSetting.graphics.terrainTexture.autoColormap ?
-										1.5 * initSetting.max_positive_bathy :
-										initSetting.graphics.terrainTexture.colormapMax);
-		SetSettingMin("Colormap Max ", 0);
-		
-		SetSettingMax("Colormap Min ", 0);
-		SetSettingMin("Colormap Min ",  initSetting.graphics.terrainTexture.autoColormap ?
-										1.5 * initSetting.min_negative_bathy :
-										initSetting.graphics.terrainTexture.colormapMin);
-		
-		SetSetting("Colormap Max ", initSetting.max_positive_bathy);
-		SetSetting("Colormap Min ", initSetting.min_negative_bathy);
+	SetSetting("Colormap Max", surfaceColormapMax / 2.0f);
+	SetSetting("Colormap Min", surfaceColormapMin / 2.0f);
 
-		SetSettingMax("Flow Depth",  initSetting.graphics.surfaceShading.autoInundationDepth ?
-										10.0f * sqrt(sqrt(initSetting.epsilon)):
-										initSetting.graphics.surfaceShading.maxInundation);
-		SetSettingMin("Flow Depth", 0.5f * sqrt(sqrt(initSetting.epsilon)));
+	SetSettingMax("Colormap Max ", initSetting.graphics.terrainTexture.autoColormap ?
+		1.5 * initSetting.max_positive_bathy :
+		initSetting.graphics.terrainTexture.colormapMax);
+	SetSettingMin("Colormap Max ", 0);
+
+	SetSettingMax("Colormap Min ", 0);
+	SetSettingMin("Colormap Min ", initSetting.graphics.terrainTexture.autoColormap ?
+		1.5 * initSetting.min_negative_bathy :
+		initSetting.graphics.terrainTexture.colormapMin);
+
+	SetSetting("Colormap Max ", initSetting.max_positive_bathy);
+	SetSetting("Colormap Min ", initSetting.min_negative_bathy);
+
+	SetSettingMax("Flow Depth", initSetting.graphics.surfaceShading.autoInundationDepth ?
+		10.0f * sqrt(sqrt(initSetting.epsilon)) :
+		initSetting.graphics.surfaceShading.maxInundation);
+	SetSettingMin("Flow Depth", 0.5f * sqrt(sqrt(initSetting.epsilon)));
 
 
-		SetSetting("Flow Depth", initSetting.graphics.surfaceShading.autoInundationDepth ? 
-										sqrt(sqrt(initSetting.epsilon)) :
-										initSetting.graphics.surfaceShading.drylandDepthOfInundation);
+	SetSetting("Flow Depth", initSetting.graphics.surfaceShading.autoInundationDepth ?
+		sqrt(sqrt(initSetting.epsilon)) :
+		initSetting.graphics.surfaceShading.drylandDepthOfInundation);
 
-		SetSettingMax("Tide/Surge/SLR", initSetting.tideSurgeSLR.maxValue);
-		SetSettingMin("Tide/Surge/SLR", initSetting.tideSurgeSLR.minValue);
-		SetSetting("Tide/Surge/SLR", initSetting.tideSurgeSLR.setValue);
-
-		if(max_depth != 0) colormap_initialized = true;
-	}
-
+	SetSettingMax("Tide/Surge/SLR", initSetting.tideSurgeSLR.maxValue);
+	SetSettingMin("Tide/Surge/SLR", initSetting.tideSurgeSLR.minValue);
+	SetSetting("Tide/Surge/SLR", initSetting.tideSurgeSLR.setValue);
 }
 
 
@@ -3335,6 +3334,7 @@ void ShallowWaterEngine::fillTerrainTexture()
         
         // Compute the new terrain heightfield
         UpdateTerrainHeightfield();
+		setMinMaxSetting();
         
         // Write the new terrain textures
         context->UpdateSubresource(m_psTerrainTexture.get(),
@@ -4322,7 +4322,6 @@ void ShallowWaterEngine::createBlendState()
 void ShallowWaterEngine::loadSkybox(int skybox_type)
 {
 
-	
 	//TODO: Make a for loop to load all bmp files in the skybox directory.
 	std::string shading_filename = "";
 
@@ -4427,7 +4426,6 @@ void ShallowWaterEngine::loadSkybox(int skybox_type)
         -0.5f, 0.5f, 0.5f,
         -0.5f, -0.5f, 0.5f,
 
-
 		// down (-Z)
         -0.5f, 0.5f, -0.5f,
         0.5f, 0.5f, -0.5f,
@@ -4504,6 +4502,7 @@ bool ShallowWaterEngine::mousePick(int mouse_x, int mouse_y,
     const float ndc_y = -2 * (mouse_y + 0.5f) / vp_height + 1;
 
     const float stepsize = 1;  // in metres
+	const float maxLookUp = 2.0f * std::max(initSetting.width, initSetting.length);  // in metres
 
     bool found = false;
     XMFLOAT4 world_pos;
@@ -4515,7 +4514,7 @@ bool ShallowWaterEngine::mousePick(int mouse_x, int mouse_y,
     // this assumes resetTimestep has previously been called.
     MapTexture m(*context, *m_psGetStatsStagingTexture4);
 
-    for (float eye_z = 1; eye_z < 1000 && !found; eye_z += stepsize) {
+    for (float eye_z = 1; eye_z < maxLookUp && !found; eye_z += stepsize) {
 
         XMFLOAT4 eye_pos( eye_z * ndc_x / xpersp,
                           eye_z * ndc_y / ypersp,

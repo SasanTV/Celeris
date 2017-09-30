@@ -138,8 +138,8 @@ private:
 
 	int  st_getCountOfMatrices(int n);
 
-
-    
+	void setMinMaxSetting();
+  
 private:
     ID3D11Device *device;
     ID3D11DeviceContext *context;
