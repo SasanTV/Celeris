@@ -202,9 +202,15 @@ struct SurfaceShadingSetting{
 	int shadingVariable;
 	bool autoColormap;
 	bool autoInundationDepth;
+	bool showInundatedArea;
+	float drylandDepthOfInundation;
+
+	bool showDissipation;
+	float dissipationThreshold;
+	float whiteWaterDecay;
+
 	float colormapMin;
 	float colormapMax;
-	float drylandDepthOfInundation;
 	float minInundation; // for visualization purposes
 	float maxInundation; // for visualization purposes
 
@@ -214,9 +220,15 @@ struct SurfaceShadingSetting{
 		shadingVariable = 0; // 0 is eta
 		autoColormap = true;
 		autoInundationDepth = true;
+		showInundatedArea = false;
+		drylandDepthOfInundation = 0.1; // 10 cm.
+		dissipationThreshold = 0.25;
+		whiteWaterDecay = 0.25;
+		
+		showDissipation = false;
+
 		colormapMin = -1.0f;	
 		colormapMax = 1.0f;	
-		drylandDepthOfInundation = 0.1; // 10 cm.
 		minInundation = 0.001; // 1 mm
 		maxInundation = 1; // 1 m
 	}
@@ -251,6 +263,9 @@ struct Lighting{
 struct GraphicsSetting{
 	bool autoCam;
 
+	// If windows must be maximized
+	bool maximized;
+
 	SurfaceShadingSetting surfaceShading;
 	TerrainTextureSetting terrainTexture;
 	int skyboxType;
@@ -265,6 +280,7 @@ struct GraphicsSetting{
 	CameraSetting camera;
 	GraphicsSetting (){
 		autoCam = true;
+		maximized = false;
 		skyboxType = 0;
 		gridOn = true;
 		gridScale = 1.0f;

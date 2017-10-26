@@ -68,7 +68,7 @@ bool g_resize = false;
 
 
 // There is a little trick that you see below! The story behind it is interesting and I, Sasan, am going to share it here.
-// InitSetting started as a small structure to encapsulate a few file paths. Then it grow and grow bigger.
+// InitSetting started as a small structure to encapsulate a few file paths. Then it grew and grew bigger.
 // At some point, it was pretty large to keep it on the stack, so I decided to put it on the heap (new InitSetting()).
 // But I did not wanted to change all initSetting.foo to initSetting->foo. So, that is the reason behind the below trick :)
 InitSetting * p_initSetting = new InitSetting();
@@ -159,6 +159,7 @@ public:
             my = y;
             right_mouse_down = true;
             window.captureMouse(true);
+			
 
         } else if (mb == Coercri::MB_LEFT) {
             left_mouse_down = true;
@@ -271,6 +272,9 @@ public:
 
     int getMX() const { return mx; }
     int getMY() const { return my; }
+	void maximizeWindow() {
+		window.maximizeWindow();
+	}
 
 private:
 
@@ -318,7 +322,7 @@ int real_main()
     std::auto_ptr<MyListener> listener;
     boost::shared_ptr<Coercri::DX11Window> window = 
         boost::static_pointer_cast<Coercri::DX11Window>(
-            gfx_driver->createWindow(g_width + GUI_WIDTH, g_height, true, false, initSetting.project_name + " - Celeris Advent (v1.3.0)"));
+            gfx_driver->createWindow(g_width + GUI_WIDTH, g_height, true, false, initSetting.project_name + " - Celeris Advent (v1.3.1)"));
     GuiManager gui_manager(window, timer, GUI_WIDTH);
 	
     // Create the ShallowWaterEngine
@@ -328,13 +332,14 @@ int real_main()
     listener.reset(new MyListener(*engine, gui_manager, *window));
     window->addWindowListener(listener.get());
 	
-
+	if (initSetting.graphics.maximized){
+		listener->maximizeWindow();
+	}
+	
     unsigned int last_draw = timer->getMsec();
     bool is_gui_shown = true;
     
     g_resize = true; // make sure it "resizes" first time
-	
-
 	
 	unsigned int reference_time = timer->getMsec();
     while (!g_quit) {
@@ -368,7 +373,6 @@ int real_main()
         };
 
         g_reset_type = R_NONE;        
-
 
 		float elapsed_time = 0;
         engine->resetTimestep(0.001f,elapsed_time);
@@ -916,6 +920,13 @@ void readGraphicsInput_helper(TiXmlElement* root){
 			initSetting.graphics.gridOn = gridOn;
 			initSetting.graphics.gridScale = gridScale;
 		}
+		if (elemName == "window")
+		{
+			bool maximized;
+			elem->QueryBoolAttribute("maximized", &maximized);
+
+			initSetting.graphics.maximized = maximized;
+		}
 		else if(elemName == "surfaceShading")
 		{
 			int type = 0;
@@ -941,11 +952,30 @@ void readGraphicsInput_helper(TiXmlElement* root){
 
 					elem2->QueryIntAttribute("value", &value);
 					initSetting.graphics.surfaceShading.shadingVariable = value;
+				}
+				else if (elem2Name == "dissipationIntensity") {
+					bool show = 0;
+
+					elem2->QueryBoolAttribute("show", &show);
+					initSetting.graphics.surfaceShading.showDissipation = show;
+
+					float disspationThreshold = .25f;
+					float whiteWaterDecay = 0.1f;
+
+					elem2->QueryFloatAttribute("threshold", &disspationThreshold);
+					initSetting.graphics.surfaceShading.dissipationThreshold = disspationThreshold;
+					elem2->QueryFloatAttribute("decay", &whiteWaterDecay);
+					initSetting.graphics.surfaceShading.whiteWaterDecay = whiteWaterDecay;
 				} else if (elem2Name == "drylandDepthOfInundation"){
 					
 					bool autoInudationDepth = true;
 					elem2->QueryBoolAttribute("auto", &autoInudationDepth);
 					initSetting.graphics.surfaceShading.autoInundationDepth = autoInudationDepth;
+
+					bool showInundatedArea = false;
+					elem2->QueryBoolAttribute("show", &showInundatedArea);
+					initSetting.graphics.surfaceShading.showInundatedArea = showInundatedArea;
+
 					float value = 0.01;
 					float maxInundation = 1;
 

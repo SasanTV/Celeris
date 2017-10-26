@@ -63,6 +63,7 @@ namespace Coercri {
         virtual void getSize(int &w, int &h) const;
         virtual bool hasFocus() const;
         virtual void popToFront();
+		virtual void maximizeWindow();
         virtual void showMousePointer(bool shown);
         virtual void captureMouse(bool captured);
         virtual void switchToWindowed(int w, int h);

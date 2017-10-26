@@ -494,6 +494,15 @@ namespace Coercri {
         SetForegroundWindow(hwnd);
     }
 
+	//
+	// Window maximize
+	//
+
+	void DX11Window::maximizeWindow()
+	{
+		ShowWindow(hwnd, SW_MAXIMIZE);
+	}
+
     
     //
     // Mouse pointer control

@@ -85,6 +85,9 @@ namespace Coercri {
         virtual void switchToWindowed(int w, int h) = 0;
         virtual void switchToFullScreen(int w, int h) = 0;
 
+		// Maximizes window
+		virtual void maximizeWindow() = 0;
+
         // Determine whether the window is currently in full-screen mode
         virtual bool isFullScreen() const = 0;
 

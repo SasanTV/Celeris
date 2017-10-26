@@ -143,9 +143,10 @@ namespace {
 		//SetSettingD("use_sea_level", 1);
 		SetSettingD("Grid Scale", initSetting.graphics.gridScale);
 		SetSettingD("Grid", initSetting.graphics.gridOn);
-		SetSettingD("Dissipation Threshold", 0.25);
-		SetSettingD("Whitewater Decay", 0.1);
-
+		SetSettingD("Dissipation Intensity", initSetting.graphics.surfaceShading.showDissipation);
+		SetSettingD("Inundated Area", initSetting.graphics.surfaceShading.showInundatedArea);
+		SetSettingD("Dissipation Threshold", initSetting.graphics.surfaceShading.dissipationThreshold);
+		SetSettingD("Whitewater Decay", initSetting.graphics.surfaceShading.whiteWaterDecay);
     }
 }
 
