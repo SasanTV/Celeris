@@ -203,6 +203,8 @@ namespace {
         float one_over_dx;
         float one_over_dy;
         float dt;
+		float dt_old;
+		float dt_old_old;
         float epsilon;      // usually dx^4
         int nx;
 		int ny;
@@ -232,6 +234,7 @@ namespace {
         int inflow_x_min, inflow_x_max;
         float sea_level, inflow_height, inflow_speed;
         float g;
+		float boundary_dt;
         float total_time;
         float sa1, skx1, sky1, so1;
         float sa2, skx2, sky2, so2;
@@ -612,10 +615,8 @@ namespace {
     {
         return (x + 15) & (~15);
     }
-
 	
-	void setTimeIntegrationScheme(ID3D11DeviceContext *context, ShallowWaterEngine::TimeIntegrationScheme *ts, ID3D11Buffer *cbuffer){
-		
+	void setTimeIntegrationScheme(ID3D11DeviceContext *context, TimeIntegrationScheme *ts, ID3D11Buffer *cbuffer){
 		
 		TimeIntegrationConstBuffer t_cBuffer;
 		t_cBuffer.tScheme = (int) (*ts);
@@ -626,7 +627,15 @@ namespace {
 	}
 	void st_DumpToFile(ID3D11DeviceContext *context, ID3D11Texture2D *staging, ID3D11Texture2D *tex, int nx, int ny)
 	{ // Can get nx and ny using GetTextureSize(...)
-		
+
+
+		std::string timeAxisFileName = initSetting.logPath + "/" + initSetting.timeAxisFilename +".txt";
+		std::ofstream timeAxisFile;
+		if (!timeAxisFile.is_open()) {
+			timeAxisFile.open(timeAxisFileName.c_str(), std::ios::out | std::ios::app);
+		}
+		timeAxisFile << GetSetting("virtual time") << "\n";
+
 		context->CopyResource(staging, tex);
 		MapTexture m(*context, *staging);
 
@@ -659,8 +668,6 @@ namespace {
 			myfile << i << "\t" << j << "\t" << p[0] << "\t" << p[1] << "\t" << p[2] << "\t" << p[3] << "\n";
 		}
 	}
-
-
 
 	void st_DumpToFileForDebug(ID3D11DeviceContext *context, ID3D11Texture2D *staging, ID3D11Texture2D *tex, int nx, int ny)
 	{ 
@@ -698,7 +705,7 @@ namespace {
 
 ShallowWaterEngine::ShallowWaterEngine(ID3D11Device *device_,
                                        ID3D11DeviceContext *context_)
-    : device(device_), context(context_), current_timestep(0), total_time(0)
+    : device(device_), context(context_), current_timestep(0), old_timestep(0), old_old_timestep(0), total_time(0)
 {
 
 
@@ -727,6 +734,7 @@ void ShallowWaterEngine::remesh(ResetType reset_type)
 	createSimTextures(reset_type);
 	
 	myTimestep_count = 0;
+	initSetting.initialized_timesteps = false;
 	total_time = 0;
 	
 }
@@ -1056,7 +1064,7 @@ void ShallowWaterEngine::timestep()
     context->Draw(6, 0);
 	
 	
-	if (timeScheme == predictor){
+	if (timeScheme == predictor || timeScheme == predictor_adaptive){
 		context->CopyResource(m_psSimTexture[predicted_index].get(),
 							  m_psSimTexture[scratch_index].get());
 		context->CopyResource(m_psSimTexture[F_G_star_predicted_index].get(),
@@ -1333,6 +1341,7 @@ void ShallowWaterEngine::timestep()
     //cb.inflow_height = inflow_height;
     cb.inflow_speed = 0.01f;
     cb.g = GetSetting("gravity");
+	cb.boundary_dt = current_timestep;
     cb.total_time = total_time;
     //SeaWaveSettings('1', cb.sa1, cb.skx1, cb.sky1, cb.so1);
     //SeaWaveSettings('2', cb.sa2, cb.skx2, cb.sky2, cb.so2);
@@ -1494,7 +1503,7 @@ void ShallowWaterEngine::timestep()
 	if (timestep_count >= 2) {
 		if (correction_steps_count == initSetting.correctionStepsNum)
 		{
-			timeScheme = predictor;
+			timeScheme = initSetting.time_scheme;
 			correction_steps_count = 0;
 		} else {
 			timeScheme = corrector;
@@ -1503,7 +1512,7 @@ void ShallowWaterEngine::timestep()
 		setTimeIntegrationScheme(context,&timeScheme,m_psTimeIntegrationConstantBuffer.get()) ;
 	}
 
-	if (timeScheme == predictor || timeScheme == euler) 
+	if (timeScheme == predictor || timeScheme == predictor_adaptive || timeScheme == euler)
 	{
 		//// Dumping to file ////
 		if (initSetting.doLog == true && timestep_count % initSetting.logStep == 0){
@@ -1527,6 +1536,10 @@ void ShallowWaterEngine::timestep()
 		F_G_star_old_old_index     = F_G_star_old_index - (F_G_star_old_old_index + F_G_star_scratch_index);
 		F_G_star_scratch_index = F_G_star_old_index - (F_G_star_old_old_index + F_G_star_scratch_index);
 		F_G_star_old_index         = F_G_star_old_index - (F_G_star_old_old_index + F_G_star_scratch_index);
+		
+		// Shift timestep queue.
+		old_old_timestep = old_timestep;
+		old_timestep = current_timestep;
 
 		// Keep track of virtual time.	
 		total_time += current_timestep;
@@ -1720,11 +1733,22 @@ void ShallowWaterEngine::resetTimestep(float realworld_dt, float elapsed_time)
 	const float dx = W / (nx-1);
 	const float dy = L / (ny-1);
 
-	//ST_: The following line is changed to avoid variational dt.
-	current_timestep = safety_factor * (std::min(dx,dy)/max_celerity); //std::min(dt * GetSetting("time_acceleration"), safety_factor / cfl);
+	if (!initSetting.initialized_timesteps) {
+		current_timestep = initSetting.timestep;
+		cfl = safety_factor / current_timestep;
+		old_old_timestep = current_timestep;
+		old_timestep = current_timestep;
+		initSetting.initialized_timesteps = true;
+	}
 
-    // update the displays
- 
+	if (timeScheme == predictor_adaptive) {
+		current_timestep = std::max(safety_factor / cfl, initSetting.timestep * initSetting.min_timestep_ratio); //std::min(dt * GetSetting("time_acceleration"), safety_factor / cfl);
+	}
+	else {
+		current_timestep = safety_factor * (std::min(dx,dy)/max_celerity); 
+	}
+	
+    // update the displays. 
 	SetSetting("mass", mass);
     SetSetting("x_momentum", x_mtm);
     SetSetting("y_momentum", y_mtm);
@@ -1736,7 +1760,6 @@ void ShallowWaterEngine::resetTimestep(float realworld_dt, float elapsed_time)
     SetSetting("max_froude_number", max_froude);
 	SetSetting("cfl_number", cfl * current_timestep);
     SetSetting("timestep", current_timestep);
-
     
 	SetSetting("time_ratio", (total_time - old_virtual_time) / (elapsed_time - old_real_time));
 	SetSetting("virtual time", total_time);
@@ -4045,16 +4068,10 @@ void ShallowWaterEngine::fillConstantBuffers()
 		firstCall = false;
 	}
 
-
-	
 	cb.water_shading = GetIntSetting("Surface Shading") ? GetIntSetting("Shading Variable") + 1 : 0;
-	
-	
 	cb.terrain_shading = isTerraingTextureColormap(terrain_texture);
 	cb.fresnel_coeff = GetSetting("fresnel_coeff");
 	
-	
-
     // setup matrix transforming (tex_x, tex_y, world_z, 1) into normalized device coordinates.
 
     const XMMATRIX tex_to_world( W / (nx - 1), 0,             0,  -W/2 - 2*W/(nx-1),
@@ -4123,7 +4140,9 @@ void ShallowWaterEngine::fillConstantBuffers()
     sb.g_over_dy = g / dy;
     sb.one_over_dx = 1.0f / dx;
     sb.one_over_dy = 1.0f / dy;
-    sb.dt = dt;
+	sb.dt = dt;
+	sb.dt_old = old_timestep;
+	sb.dt_old_old = old_old_timestep;
     sb.epsilon = CalcEpsilon();
     sb.nx = nx;
     sb.ny = ny;

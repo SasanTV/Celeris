@@ -64,8 +64,7 @@ Setting g_settings[] =
         { "left_mouse_radius", "", S_SLIDER, R_NONE, 1, 25, 5 },
         { "left_mouse_strength", "", S_SLIDER, R_NONE, 1, 50, 10 },
         { "" },
-		
-        
+
         //{ "mass", "kg", S_LABEL },
         //{ "x_momentum", "kg m s^-1", S_LABEL },
         //{ "y_momentum", "kg m s^-1", S_LABEL },
@@ -79,6 +78,7 @@ Setting g_settings[] =
 
         { "fps", "s^-1", S_LABEL },
         { "cfl_number", "", S_LABEL },
+		{ "timestep", "s", S_LABEL },
         { "time_ratio", "", S_LABEL },
 		{ "" },
 		{ "virtual time", "", S_LABEL },
@@ -120,7 +120,6 @@ Setting g_settings[] =
         { "nominal_cfl", "", S_SLIDER, R_NONE, 0, 0.6 },
         { "timesteps_per_frame", "", S_SLIDER_INT, R_NONE, 1, 30 },
         //{ "time_acceleration", "", S_SLIDER, R_NONE, 1, 30 },
-		{ "timestep", "s", S_LABEL },
         {""},
 
         //{ "clip_camera", "", S_CHECKBOX, R_NONE, 0, 1 },

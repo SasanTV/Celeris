@@ -80,6 +80,8 @@ cbuffer SimConstBuffer : register( b0 )
     float one_over_dx;
     float one_over_dy;
     float dt;
+	float dt_old;
+	float dt_old_old;
     float epsilon;      // suggestion: dx^4 or dy^4. but that may be too small for floats?
     int nx; // number of cells in x direction, excluding ghost zones
 	int	ny;// number of cells in y direction, excluding ghost zones  
@@ -124,7 +126,7 @@ cbuffer  IrregularWavesColumnRowConstBuffer: register( b2 ){
 
 cbuffer TimeIntegrationBuffer : register( b1 )
 {
-    int timeScheme; // in the main code enum:int is used. but hlsl does no compile enums, so I use int explicitly here.
+    int timeScheme; // in the main code enum:int is used. but hlsl does not compile enums, so I use int explicitly here.
 };
 
 
@@ -145,6 +147,7 @@ cbuffer BoundaryConstBuffer : register( b0 )
     int inflow_x_min, inflow_x_max;
     float sea_level, inflow_height, inflow_speed;
     float boundary_g;
+	float boundary_dt;
     float total_time;
     float sa1, skx1, sky1, so1;
     float sa2, skx2, sky2, so2;
@@ -379,11 +382,11 @@ float NumericalFlux(float aplus, float aminus, float Fplus, float Fminus, float 
 
 
 // Pass 1 -- Reconstruct h, u, v at the four edges of each cell.
-
+//
 // t0: txState
 // t1: txBottom
 // Output: txH, txU, txV, txNormal
-
+//
 // Runs on bulk + first ghost layer either side
 
 PASS_1_OUTPUT Pass1(VS_OUTPUT input)
@@ -468,13 +471,13 @@ PASS_1_OUTPUT Pass1(VS_OUTPUT input)
 
 
 // Pass 2 -- Calculate fluxes
-
+//
 // t0: txH
 // t1: txU
 // t2: txV
 // t3: normal_tex
 // Output: txXFlux and txYFlux
-
+//
 // Runs on bulk + first ghost layer to west and south only
 
 PASS_2_OUTPUT Pass2( VS_OUTPUT input )
@@ -564,14 +567,66 @@ float FrictionCalc(float hu, float hv, float h)
 	return    f * sqrt(hu*hu + hv*hv) * divide_by_h * divide_by_h;
 }
 
-// Pass 3 -- Do timestep and calculate new w_bar, hu_bar, hv_bar.
+// Returns the coefficient for Y in our AdamsBashforth third order
+// time integration with variable time-step.
+// .r = coefficient for Y ^ (n - 0)
+// .g = coefficient for Y ^ (n - 1)
+// .b = coefficient for Y ^ (n - 2)
+float3 AdamsBashforthCoef(float dt_n, float dt_n_minus_1, float dt_n_minus_2) {
+	float3 coef;
+	coef.r = (dt_n / dt_n_minus_1) * ((2 * dt_n + 6 * dt_n_minus_1 + 3 * dt_n_minus_2) / (dt_n_minus_1 + dt_n_minus_2)) + 6;
+	coef.g = -(dt_n / dt_n_minus_1) * ((2 * dt_n + 3 * dt_n_minus_1 + 3 * dt_n_minus_2) / (dt_n_minus_2));
+	coef.b = (dt_n / dt_n_minus_2) * ((2 * dt_n + 3 * dt_n_minus_1) / (dt_n_minus_1 + dt_n_minus_2));
+	return coef;
+}
 
+// Returns the second order backward derivative at dt_n.
+float SecondOrderBackward(float y_n, float y_n_minus_1, float y_n_minus_2, float dt_n, float dt_n_minus_1, float dt_n_minus_2) {
+	float3 coef;
+	coef.r = (2*dt_n_minus_1 + dt_n_minus_2)/(dt_n_minus_1 * (dt_n_minus_1 + dt_n_minus_2));
+	coef.g = -(dt_n_minus_1 + dt_n_minus_2)/(dt_n_minus_1 * dt_n_minus_2);
+	coef.b = (dt_n_minus_1)/(dt_n_minus_2 * (dt_n_minus_1 + dt_n_minus_2));
+	return (coef.r * y_n) + (coef.g * y_n_minus_1) + (coef.b * y_n_minus_2);
+}
+
+// Returns the second order central derivative at dt_n_minus_1.
+float SecondOrderCentral(float y_n, float y_n_minus_1, float y_n_minus_2, float dt_n, float dt_n_minus_1, float dt_n_minus_2) {
+	float3 coef;
+	coef.r = (dt_n_minus_2) / (dt_n_minus_1 * (dt_n_minus_1 + dt_n_minus_2));
+	coef.g = (dt_n_minus_1 - dt_n_minus_2) / (dt_n_minus_1 * dt_n_minus_2);
+	coef.b = -(dt_n_minus_1) / (dt_n_minus_2 * (dt_n_minus_1 + dt_n_minus_2));
+	return (coef.r * y_n) + (coef.g * y_n_minus_1) + (coef.b * y_n_minus_2);
+}
+
+// Returns the second order forward derivatives at dt_n_minus_2.
+float SecondOrderForward(float y_n, float y_n_minus_1, float y_n_minus_2, float dt_n, float dt_n_minus_1, float dt_n_minus_2) {
+	float3 coef;
+	coef.r = -(dt_n_minus_2) / (dt_n_minus_1 * (dt_n_minus_1 + dt_n_minus_2));
+	coef.g = (dt_n_minus_1 + dt_n_minus_2) / (dt_n_minus_1 * dt_n_minus_2);
+	coef.b = -(dt_n_minus_1 + 2*dt_n_minus_2) / (dt_n_minus_2 * (dt_n_minus_1 + dt_n_minus_2));
+	return (coef.r * y_n) + (coef.g * y_n_minus_1) + (coef.b * y_n_minus_2);
+}
+
+// Returns the second order derivatives of hte given variable.
+// .r = dy/dt at t_n (backward)
+// g. = dy/dt at t_n_minus_1 (central)
+// b. = dy/dt at t_n_minus_2 (forward)
+float3 SecondOrderDerivatives(float y_n, float y_n_minus_1, float y_n_minus_2, float dt_n, float dt_n_minus_1, float dt_n_minus_2) {
+	float3 derivatives;
+	derivatives.r = SecondOrderBackward(y_n, y_n_minus_1, y_n_minus_2, dt_n, dt_n_minus_1, dt_n_minus_2);
+	derivatives.g = SecondOrderCentral(y_n, y_n_minus_1, y_n_minus_2, dt_n, dt_n_minus_1, dt_n_minus_2);
+	derivatives.b = SecondOrderForward(y_n, y_n_minus_1, y_n_minus_2, dt_n, dt_n_minus_1, dt_n_minus_2);
+	return derivatives;
+}
+
+// Pass 3 -- Do timestep and calculate new w_bar, hu_bar, hv_bar.
+//
 // t0: txState
 // t1: txBottom
 // t2: txXFlux
 // t3: txYFlux
 // Output: New txState
-
+//
 // Runs on interior points only
 PASS_3_OUTPUT Pass3Predictor( VS_OUTPUT input ) 
 {
@@ -597,7 +652,7 @@ PASS_3_OUTPUT Pass3Predictor( VS_OUTPUT input )
 	const float h = max(0, in_state_here.r - B_here.b);
 
 	//d stencil
-//must pass d as a resource. redundant calculation	
+	//must pass d as a resource. redundant calculation	
 	const float d_here = max(0, seaLevel - B_here.b);
 	const float d2_here = d_here * d_here;
 	const float d3_here = d2_here * d_here;
@@ -685,15 +740,15 @@ PASS_3_OUTPUT Pass3Predictor( VS_OUTPUT input )
 	const float F_star = 0;
 	const float G_star = 0;
 */
-	const float F_star = (1.0f/6.0f * d_here *
-					( dd_by_dx * ((one_over_dy/2.0f) * (in_state_up.b - in_state_down.b)) +
-					 (dd_by_dy * ((one_over_dx/2.0f) * (in_state_right.b - in_state_left.b)))) +
-					0*(Bcoef_g/g + 1.0f/3.0f) * d2_here * (one_over_dx*one_over_dy/4.0f) * (in_state_up_right.b - in_state_down_right.b - in_state_up_left.b + in_state_down_left.b));
+	const float F_star = (1.0f / 6.0f * d_here *
+		(dd_by_dx * ((one_over_dy / 2.0f) * (in_state_up.b - in_state_down.b)) +
+		(dd_by_dy * ((one_over_dx / 2.0f) * (in_state_right.b - in_state_left.b)))) +
+		0 * (Bcoef_g / g + 1.0f / 3.0f) * d2_here * (one_over_dx*one_over_dy / 4.0f) * (in_state_up_right.b - in_state_down_right.b - in_state_up_left.b + in_state_down_left.b));
     
-    const float G_star = (1.0f/6.0f * d_here *
-					( dd_by_dx * ((one_over_dy/2.0f) * (in_state_up.g - in_state_down.g)) +
-					 (dd_by_dy * ((one_over_dx/2.0f) * (in_state_right.g - in_state_left.g)))) +
-					0*(Bcoef_g/g + 1.0f/3.0f) * d2_here * (one_over_dx*one_over_dy/4.0f) * (in_state_up_right.g - in_state_down_right.g - in_state_up_left.g + in_state_down_left.g));
+	const float G_star = (1.0f / 6.0f * d_here *
+		(dd_by_dx * ((one_over_dy / 2.0f) * (in_state_up.g - in_state_down.g)) +
+		(dd_by_dy * ((one_over_dx / 2.0f) * (in_state_right.g - in_state_left.g)))) +
+		0 * (Bcoef_g / g + 1.0f / 3.0f) * d2_here * (one_over_dx*one_over_dy / 4.0f) * (in_state_up_right.g - in_state_down_right.g - in_state_up_left.g + in_state_down_left.g));
 
     // time stepping (third order)
 	
@@ -708,7 +763,7 @@ PASS_3_OUTPUT Pass3Predictor( VS_OUTPUT input )
 			dt * d_by_dt.b; // FG_Star is neglected
 	
 	}
-	else if (timeScheme == 1 || timeScheme == 2) // if time scheme is preditor or corrector
+	else if (timeScheme == 1 || timeScheme == 2 || timeScheme == 3) // if time scheme is preditor or corrector
 	{
 		const float3 oldies = oldGradients.Load(idx).rgb;
 		const float3 oldOldies = oldOldGradients.Load(idx).rgb;
@@ -717,14 +772,31 @@ PASS_3_OUTPUT Pass3Predictor( VS_OUTPUT input )
 		 
 		if (timeScheme == 1) //if time scheme is predictor
 		{
-			wOut = in_state_here.r + dt/12 * (23*d_by_dt.r - 16*oldies.r  + 5*oldOldies.r);
+			wOut = in_state_here.r + dt / 12.0f * (23.0f * d_by_dt.r - 16.0f * oldies.r + 5.0f * oldOldies.r);
 			huOut = myCoefMatx.r * in_state_left.g + myCoefMatx.g * in_state_here.g + myCoefMatx.b * in_state_right.g +
-				dt/12.0f * (23*d_by_dt.g - 16*oldies.g  + 5*oldOldies.g) + 
-				(2*F_star - 3*F_G_star_oldies.r + F_G_star_oldOldies.r);
+				dt / 12.0f * (23.0f * d_by_dt.g - 16.0f * oldies.g + 5.0f * oldOldies.g) +
+				(2.0f * F_star - 3.0f * F_G_star_oldies.r + F_G_star_oldOldies.r);
+			
 			hvOut = myCoefMaty.r * in_state_down.b + myCoefMaty.g * in_state_here.b + myCoefMaty.b * in_state_up.b +
-				dt/12.0f * (23*d_by_dt.b - 16*oldies.b  + 5*oldOldies.b) + 
-				(2*G_star - 3*F_G_star_oldies.g + F_G_star_oldOldies.g);
-		} else if (timeScheme == 2) // if time scheme is corrector
+				dt / 12.0f * (23.0f * d_by_dt.b - 16.0f * oldies.b + 5.0f * oldOldies.b) +
+				(2.0f * G_star - 3.0f * F_G_star_oldies.g + F_G_star_oldOldies.g);
+		} 
+		else if (timeScheme == 3) //if time scheme is adaptive predictor
+		{
+			float3 coef = AdamsBashforthCoef(dt, dt_old, dt_old_old);
+			float3 derivativesFStar = SecondOrderDerivatives(F_star, F_G_star_oldies.r, F_G_star_oldOldies.r, dt, dt_old, dt_old_old);
+			float3 derivativesGStar = SecondOrderDerivatives(G_star, F_G_star_oldies.g, F_G_star_oldOldies.g, dt, dt_old, dt_old_old);
+
+			wOut = in_state_here.r + dt / 6.0f * (coef.r * d_by_dt.r + coef.g * oldies.r + coef.b * oldOldies.r);
+			huOut = myCoefMatx.r * in_state_left.g + myCoefMatx.g * in_state_here.g + myCoefMatx.b * in_state_right.g +
+				dt / 6.0f * (coef.r * d_by_dt.g + coef.g * oldies.g + coef.b * oldOldies.g) +
+				dt / 6.0f * (coef.r * derivativesFStar.r + coef.g * derivativesFStar.g + coef.b * derivativesFStar.b);
+
+			hvOut = myCoefMaty.r * in_state_down.b + myCoefMaty.g * in_state_here.b + myCoefMaty.b * in_state_up.b +
+				dt / 6.0f * (coef.r * d_by_dt.b + coef.g * oldies.b + coef.b * oldOldies.b) +
+				dt / 6.0f * (coef.r * derivativesGStar.r + coef.g * derivativesGStar.g + coef.b * derivativesGStar.b);
+		}
+		else if (timeScheme == 2) // if time scheme is corrector
 		{
 		
 			const float3 current_state_here  = current_state.Load(idx).rgb;   // w, hu and hv (cell avgs, evaluated here)
@@ -760,7 +832,6 @@ PASS_3_OUTPUT Pass3Predictor( VS_OUTPUT input )
     return output;
 
 }
-
 
 float4 CopyFromXxAndXy( VS_OUTPUT input ) : SV_Target
 {
@@ -969,12 +1040,19 @@ float4 NorthBoundarySolid( VS_OUTPUT input ) : SV_TARGET
 	return float4(in_state_real.r, in_state_real.g, -in_state_real.b, 0);
 }
 
+float SpongeFunction(float L, float x) {
+	
+	return 0.5 + 0.5 * cos(PI * max(L - x, 0) / L);
+}
 
 float4 WestBoundarySponge( VS_OUTPUT input ) : SV_TARGET
 {
     // mirror on real input
 	const int3 idx = GetTexIdx(input);
-	float gamma = 0.5 * (0.5 + 0.5 * cos(PI * (westBoundaryWidth - idx.x + 0.0f) / (westBoundaryWidth + 0.0f)));
+	
+	const float d_here = max(0, southSeaLevel - txBottom.Load(idx).b);
+	float gamma = SpongeFunction(float(westBoundaryWidth) * dx, float(idx.x) * dx)
+				/ SpongeFunction(float(westBoundaryWidth) * dx, float(idx.x) * dx + sqrt(boundary_g * d_here) * boundary_dt);
 	const  float4 new_state = txState.Load(idx);
 	return float4 (gamma * (new_state.r-westSeaLevel) + westSeaLevel, gamma * new_state.g, gamma * new_state.b, 0);
 }
@@ -983,7 +1061,10 @@ float4 EastBoundarySponge( VS_OUTPUT input ) : SV_TARGET
 {
     // mirror on real input
 	const int3 idx = GetTexIdx(input);
-	float gamma = (0.5 + 0.5 * cos(PI * (eastBoundaryWidth - (boundary_nx - idx.x)) / eastBoundaryWidth));
+
+	const float d_here = max(0, southSeaLevel - txBottom.Load(idx).b);
+	float gamma = SpongeFunction(float(eastBoundaryWidth) * dx, float(boundary_nx - idx.x) * dx)
+				/ SpongeFunction(float(eastBoundaryWidth) * dx, float(boundary_nx - idx.x) * dx + sqrt(boundary_g * d_here) * boundary_dt);
 	const  float4 new_state = txState.Load(idx);
 	return float4 (gamma * (new_state.r - eastSeaLevel) + eastSeaLevel, gamma * new_state.g, gamma * new_state.b, 0);
 }
@@ -993,7 +1074,11 @@ float4 SouthBoundarySponge( VS_OUTPUT input ) : SV_TARGET
 {
     // mirror on real input
 	const int3 idx = GetTexIdx(input);
-	float gamma = 0.5 * (0.5 + 0.5 * cos(PI * (southBoundaryWidth - idx.y + 0.0f) / (southBoundaryWidth + 0.0f)));
+
+	const float d_here = max(0, southSeaLevel - txBottom.Load(idx).b);
+	float gamma = SpongeFunction(float(southBoundaryWidth) * dy, float(idx.y) * dy)
+		/ SpongeFunction(float(southBoundaryWidth) * dy, float(idx.y) * dy + sqrt(boundary_g * d_here) * boundary_dt);
+
 	const  float4 new_state = txState.Load(idx);
 	return float4 (gamma * (new_state.r-southSeaLevel) + southSeaLevel, gamma * new_state.g, gamma * new_state.b, 0);
 }
@@ -1002,7 +1087,10 @@ float4 NorthBoundarySponge( VS_OUTPUT input ) : SV_TARGET
 {
     // mirror on real input
 	const int3 idx = GetTexIdx(input);
-	float gamma = (0.5 + 0.5 * cos(PI * (northBoundaryWidth - (boundary_ny - idx.y)) / northBoundaryWidth));
+
+	const float d_here = max(0, southSeaLevel - txBottom.Load(idx).b);
+	float gamma = SpongeFunction(float(northBoundaryWidth) * dy, float(boundary_ny - idx.y) * dy)
+				/ SpongeFunction(float(northBoundaryWidth) * dy, float(boundary_ny - idx.y) * dy + sqrt(boundary_g * d_here) * boundary_dt);
 	const  float4 new_state = txState.Load(idx);
 	return float4 (gamma * (new_state.r - northSeaLevel) + northSeaLevel, gamma * new_state.g, gamma * new_state.b, 0);
 }
@@ -1162,8 +1250,6 @@ float4 RowSumReduce( VS_OUTPUT input ) : SV_TARGET
 	
 	return irregularWavesLastReduction.Load(idx_in_down) + irregularWavesLastReduction.Load(idx_in_up);
 }
-
-
 
 float4 WestBoundaryIrregularWaves( VS_OUTPUT input ) : SV_TARGET
 {

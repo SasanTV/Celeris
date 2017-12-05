@@ -301,6 +301,8 @@ struct TideSurgeSLR{
 
 };
 
+enum TimeIntegrationScheme : signed int { euler, predictor, corrector, predictor_adaptive };
+
 struct InitSetting {
 	
 	//name
@@ -325,8 +327,14 @@ struct InitSetting {
 	float theta;
 	float friction;
 	int isManning; // 1 is manning, anything else is quadratic.
+	
 	int correctionStepsNum;
 	float timestep;
+	// min_timestep_ratio*timestep is the minimum timestep targeted 
+	// in the adaptive timestepping scheme.
+	float min_timestep_ratio;
+	bool initialized_timesteps;
+	TimeIntegrationScheme time_scheme;
 
 	//Field
 	int nx;
@@ -350,7 +358,6 @@ struct InitSetting {
 	//Log
 	bool doLog;
 	int logStep;
-	std::string logType;
 	static const int MAX_NUM_RANGE = 100;
 	Range logRange[MAX_NUM_RANGE];
 	int countOfRanges;
@@ -361,6 +368,7 @@ struct InitSetting {
 	std::string gaugesFilename;
 	Point logGauges[MAX_NUM_GAUGE];
 	int countOfGauges;
+	std::string timeAxisFilename;
 	float max_positive_bathy, min_negative_bathy, min_bathy;
 	GraphicsSetting graphics;
 
@@ -387,6 +395,9 @@ struct InitSetting {
 		isManning = 0; // 1 is manning, anything else is quadratic.
 		correctionStepsNum = 0;
 		timestep = 0.0001;
+		min_timestep_ratio = 0.05;
+		initialized_timesteps = false;
+		time_scheme = predictor;
 
 		//Field
 		nx = 100;
@@ -409,14 +420,15 @@ struct InitSetting {
 		//Log
 		doLog = false;
 		logStep = 100;
-		logType = "NA";
 		countOfRanges = 0;
 
 		saveBathymetry = false;
 		saveInundation = false;
 
-		gaugesFilename = "NA";
-		int countOfGauges = 0;
+		gaugesFilename = "gauges";
+		countOfGauges = 0;
+
+		timeAxisFilename = "time_axis";
 		max_positive_bathy = 0; min_negative_bathy = 0; min_bathy = 0;
 	}
 

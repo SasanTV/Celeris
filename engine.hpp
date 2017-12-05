@@ -92,7 +92,6 @@ public:
     // get water height (h + B) at the given point
     float getWaterHeight(float world_x, float world_y);
 
-	enum TimeIntegrationScheme : signed int {euler, predictor, corrector};
 	void createBoundaryShaders();
 	void createBoundaryShadersInit();
     
@@ -298,6 +297,8 @@ private:
     
     // current timestep
     float current_timestep;
+	float old_timestep;
+	float old_old_timestep;
     float total_time;
 	int myTimestep_count;
 

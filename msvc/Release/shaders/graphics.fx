@@ -15,6 +15,13 @@
  *
  * COPYRIGHT:
  *   Copyright (C) 2012, Stephen Thompson.
+ *   Sasan Tavakkol <tavakkol@usc.edu> or <sasan.tavakkol@yahoo.com>
+ *
+ * CREATED:
+ *   27-Oct-2016
+ *-------------------------------------------------------------------------------------------
+ * COPYRIGHT:
+ *   Copyright (C) 2012, Stephen Thompson.
  *
  *   This file is part of Stephen Thompson's Shallow Water Demo.
  *
@@ -32,7 +39,31 @@
  *   along with the Shallow Water Demo. If not, see
  *   <http://www.gnu.org/licenses/>.
  *
+ *
+ * COPYRIGHT:
+ *   Copyright (C) 2016,  Sasan Tavakkol
+ *
+ *   This file is part of Celeris Software.
+ *
+ *   Celeris is free software: you can redistribute it
+ *   and/or modify it under the terms of the GNU General Public
+ *   License as published by the Free Software Foundation, either
+ *   version 3 of the License, or (at your option) any later version.
+ *
+ *   Celeris is distributed in the hope that it will be
+ *   useful, but WITHOUT ANY WARRANTY; without even the implied
+ *   warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ *   See the GNU General Public License for more details.
+ *
+ *   You should have received a copy of the GNU General Public License
+ *   along with Celeris. If not, see
+ *   <http://www.gnu.org/licenses/>.
+ *
+
+ *
+ *
  */
+
 
 // Textures
 
@@ -247,9 +278,6 @@ float4 TerrainPixelShader( TERRAIN_PS_INPUT input ) : SV_Target
 	if(isGridOn){
 		tex_colour += (1-txGrid.Sample( samLinear, input.tex_coord ).rgb);
 	}
-
-
-
 
     // Lighting calculation
     return float4(TerrainColour(tex_colour, input.normal), 1);

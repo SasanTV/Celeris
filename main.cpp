@@ -322,7 +322,7 @@ int real_main()
     std::auto_ptr<MyListener> listener;
     boost::shared_ptr<Coercri::DX11Window> window = 
         boost::static_pointer_cast<Coercri::DX11Window>(
-            gfx_driver->createWindow(g_width + GUI_WIDTH, g_height, true, false, initSetting.project_name + " - Celeris Advent (v1.3.1)"));
+            gfx_driver->createWindow(g_width + GUI_WIDTH, g_height, true, false, initSetting.project_name + " - Celeris Advent (v1.3.3)"));
     GuiManager gui_manager(window, timer, GUI_WIDTH);
 	
     // Create the ShallowWaterEngine
@@ -535,7 +535,7 @@ bool readInputCML()
 				initSetting.project_name = elem->FirstChild()->ToText()->Value();
 			}
 			else if(elemName == "model")
-			 {
+			{
 				std::string modelType;
 				elem->QueryStringAttribute("type", &modelType);
 				if (modelType == "BSNQ")
@@ -568,14 +568,16 @@ bool readInputCML()
 				elem->FirstChildElement("parameters")->QueryFloatAttribute("timestep", &tempFloat);
 				initSetting.timestep = tempFloat;
 
+				bool tempBool = false;
+				elem->FirstChildElement("parameters")->QueryBoolAttribute("adaptive", &tempBool);
+				initSetting.time_scheme = tempBool? predictor_adaptive : predictor;
+
 				std::string frictionType;
 				elem->FirstChildElement("friction")->QueryStringAttribute("type", &frictionType);
 				initSetting.isManning = (frictionType == "Manning")?1:0;
 
 				elem->FirstChildElement("friction")->QueryFloatAttribute("coef", &tempFloat);
 				initSetting.friction = tempFloat;
-
-				
 			}
 			else if(elemName == "gridSize")
 			{
@@ -610,8 +612,8 @@ bool readInputCML()
 					elem->QueryFloatAttribute("set", &tideSet);
 				}
 				initSetting.tideSurgeSLR.autoValue = autoTide;
-				initSetting.tideSurgeSLR.minValue = tideMin;						
-				initSetting.tideSurgeSLR.maxValue = tideMax;
+				initSetting.tideSurgeSLR.minValue = tideMax;
+				initSetting.tideSurgeSLR.minValue = tideMin;
 				initSetting.tideSurgeSLR.setValue = tideSet;
 			}
 			else if(elemName == "hotStartFilePath")
@@ -844,6 +846,11 @@ bool readInputCML()
 							initSetting.logPath = tempString;
 						}
 					}
+					if (elem2Name == "timeAxis") {
+						std::string filename = "";
+						elem2->QueryStringAttribute("filename", &filename);
+						initSetting.timeAxisFilename = filename;
+					}
 					else if (elem2Name == "range"){
 						int x1,y1,x2,y2;
 						std::string filename = "";
@@ -892,7 +899,6 @@ bool readInputCML()
 			initSetting.graphics.camera.yaw = atan(initSetting.width/initSetting.length);
 		}
 		return 0;
-
 	}
 	else
 	{
