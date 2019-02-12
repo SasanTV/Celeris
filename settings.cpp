@@ -117,7 +117,9 @@ Setting g_settings[] =
         { "" },
 
         { "Theta", "", S_SLIDER, R_NONE, 1, 2 },
-        { "nominal_cfl", "", S_SLIDER, R_NONE, 0, 0.6 },
+        { "target cfl", "", S_SLIDER, R_NONE, 0, 0.6 },
+		{ "uniform time step", "", S_SLIDER, R_NONE, 0, 1 },
+
         { "timesteps_per_frame", "", S_SLIDER_INT, R_NONE, 1, 30 },
         //{ "time_acceleration", "", S_SLIDER, R_NONE, 1, 30 },
         {""},

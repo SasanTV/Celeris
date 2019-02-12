@@ -15,6 +15,7 @@
     <ProjectGuid>{F4B393AC-7A44-4CE7-8AC6-F119FB0A7761}</ProjectGuid>
     <RootNamespace>shallow_water</RootNamespace>
     <Keyword>Win32Proj</Keyword>
+    <WindowsTargetPlatformVersion>10.0.16299.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
@@ -82,11 +83,11 @@
     <ClCompile>
       <Optimization>MaxSpeed</Optimization>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <AdditionalIncludeDirectories>..\..\guichan_0.8.2\include;%(AdditionalIncludeDirectories);c:\boost\boost_1_64_0</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\guichan_0.8.2\include;%(AdditionalIncludeDirectories);c:\boost\boost_1_67_0</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <FunctionLevelLinking>true</FunctionLevelLinking>
-      <PrecompiledHeader />
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
     </ClCompile>
@@ -98,6 +99,7 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <TargetMachine>MachineX86</TargetMachine>
       <Profile>true</Profile>
+      <AdditionalLibraryDirectories>C:\boost\boost_1_67_0\stage\lib</AdditionalLibraryDirectories>
     </Link>
     <FxCompile />
     <FxCompile>

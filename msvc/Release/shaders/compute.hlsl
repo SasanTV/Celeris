@@ -115,20 +115,15 @@ cbuffer IrregularWavesConstBuffer : register( b1 )
 	int numberOfWavesWest, numberOfWavesEast, numberOfWavesSouth, numberOfWavesNorth;
 };
 
-
-
 cbuffer  IrregularWavesColumnRowConstBuffer: register( b2 ){
 		int columnNumber;
 		int rowNumber;
 }
 
-
-
 cbuffer TimeIntegrationBuffer : register( b1 )
 {
     int timeScheme; // in the main code enum:int is used. but hlsl does not compile enums, so I use int explicitly here.
 };
-
 
 cbuffer BoundaryConstBuffer : register( b0 )
 {
@@ -192,6 +187,7 @@ Texture2D<float4> current_state : register( t12 );
 // .g = D1x (to find hu_bar)
 // .b = D1y (to find hv_bar)
 // .a = (unused)
+// TODO: Remove myRHS
 Texture2D<float4> myRHS : register( t0 );
 
 // .r = N
@@ -216,9 +212,6 @@ Texture2D<float4> txAuxiliary1 : register( t3 );
 
 // r = maxFlowDepth, b = breaking
 Texture2D<float4> txAuxiliary2 : register( t4 );
-
-
-
 
 // .r = 1 (w-flux)
 // .g = 2 (hu-flux)
@@ -247,8 +240,6 @@ Texture2D<float4> Xy : register( t3 );
 // .a = (unused)
 Texture2D<float4> irregularWavesLastReduction : register( t0 );
 
-
-
 struct VS_INPUT {
     float2 tex_idx : TEX_IDX;
 };
@@ -272,7 +263,6 @@ struct PASS_2_OUTPUT {
 	float4 auxiliary : SV_TARGET2; //(MaxDepth, unused, unused, unused). The unused variables will be used for max v, u, and |V| later. 
 };
 
-
 struct PASS_3_OUTPUT {
     float4 newState : SV_TARGET0;   // {h, hu, hv, unused}
     float4 dU_by_dt : SV_TARGET1;   // {dU1/dt, dU2/dt, dU3/dt, unused} U1 is w, U2 and U3 are used to get hu and hv.
@@ -282,7 +272,6 @@ struct PASS_3_OUTPUT {
 struct ADD_SOLITARY_OUTPUT {
     float4 newState : SV_TARGET0;   // {h, hu, hv, unused}
 };
-
 
 VS_OUTPUT SimVertexShader(VS_INPUT input)
 {
@@ -388,7 +377,6 @@ float NumericalFlux(float aplus, float aminus, float Fplus, float Fminus, float 
 // Output: txH, txU, txV, txNormal
 //
 // Runs on bulk + first ghost layer either side
-
 PASS_1_OUTPUT Pass1(VS_OUTPUT input)
 {
     // Read in relevant texture values
@@ -479,7 +467,6 @@ PASS_1_OUTPUT Pass1(VS_OUTPUT input)
 // Output: txXFlux and txYFlux
 //
 // Runs on bulk + first ghost layer to west and south only
-
 PASS_2_OUTPUT Pass2( VS_OUTPUT input )
 {
     const int3 idx = GetTexIdx(input);
@@ -553,8 +540,6 @@ PASS_2_OUTPUT Pass2( VS_OUTPUT input )
 	output.auxiliary = float4(txAuxiliary2.Load(idx).r, 0, txAuxiliary2.Load(idx).b, breaking_white); 
     return output;
 }
-
-
 
 float FrictionCalc(float hu, float hv, float h)
 {	
@@ -698,8 +683,6 @@ PASS_3_OUTPUT Pass3Predictor( VS_OUTPUT input )
     const float3 yflux_here = txYFlux.Load(idx).rgb;
     const float3 yflux_south = txYFlux.Load(idx + int3(0,-1,0)).rgb;
 	
-
-        
     // friction calculations
     float u, v;
     CalcUV_Scalar(h, in_state_here.g, in_state_here.b, u, v);
@@ -753,15 +736,14 @@ PASS_3_OUTPUT Pass3Predictor( VS_OUTPUT input )
     // time stepping (third order)
 	
 	float wOut = 0, huOut = 0, hvOut = 0;
+	
 	if (timeScheme == 0)  //if timeScheme is Euler do:
 	{
-	
 		wOut = in_state_here.r + dt * d_by_dt.r;
 		huOut = myCoefMatx.r * in_state_left.g + myCoefMatx.g * in_state_here.g + myCoefMatx.b * in_state_right.g +
 			dt * d_by_dt.g; // FG_Star is neglected
 		hvOut = myCoefMaty.r * in_state_down.b + myCoefMaty.g * in_state_here.b + myCoefMaty.b * in_state_up.b +
 			dt * d_by_dt.b; // FG_Star is neglected
-	
 	}
 	else if (timeScheme == 1 || timeScheme == 2 || timeScheme == 3) // if time scheme is preditor or corrector
 	{
@@ -798,7 +780,6 @@ PASS_3_OUTPUT Pass3Predictor( VS_OUTPUT input )
 		}
 		else if (timeScheme == 2) // if time scheme is corrector
 		{
-		
 			const float3 current_state_here  = current_state.Load(idx).rgb;   // w, hu and hv (cell avgs, evaluated here)
 			const float3 current_state_right = current_state.Load(idx + int3(+1,0,0)).rgb;   // w, hu and hv at right cell (cell avgs, evaluated here)
 			const float3 current_state_left  = current_state.Load(idx + int3(-1,0,0)).rgb;   // w, hu and hv at left cell (cell avgs, evaluated here)
@@ -814,23 +795,20 @@ PASS_3_OUTPUT Pass3Predictor( VS_OUTPUT input )
 			hvOut = myCoefMaty.r * current_state_down.b + myCoefMaty.g * current_state_here.b + myCoefMaty.b * current_state_up.b +
 				dt/24.0f * (9*d_by_dt.b + 19*predicted.b - 5*oldies.b + 1*oldOldies.b) + 
 				G_star - F_G_star_predicted.g;
-
 		}
 	}
-	
 
 	PASS_3_OUTPUT output = (PASS_3_OUTPUT) 0;
 	float4 result1;
 	result1 = float4(wOut, huOut, hvOut, 0);
 	output.newState = result1;
-	float4 result2 = float4(d_by_dt.r,d_by_dt.g,d_by_dt.b,0);
+	float4 result2 = float4(d_by_dt.r, d_by_dt.g, d_by_dt.b, 0);
 	output.dU_by_dt = result2;
-	float4 result3 = float4(F_star,G_star,0,0);
+	float4 result3 = float4(F_star, G_star, 0, 0);
 	//float4 result3 = float4(in_state_up_right.g,in_state_down_right.g,in_state_up_left.g,-1+eta_down_left);
 	output.F_G_star = result3;
 	
     return output;
-
 }
 
 float4 CopyFromXxAndXy( VS_OUTPUT input ) : SV_Target
@@ -843,8 +821,6 @@ float4 CopyFromXxAndXy( VS_OUTPUT input ) : SV_Target
 
     return result;
 }
-
-
 
 // CyclicReduceDx -- cyclic reduction in x direction for rhs 
 
@@ -970,8 +946,6 @@ float4 CyclicSubstituteXy( VS_OUTPUT input ) : SV_Target
 	return result;
 }
 
-
-
 float3 solitaryWave (const float waterDepth, const float param_H, const float theta,
 					const float x_zero, const float y_zero,
 					float x, float y){
@@ -982,7 +956,6 @@ float3 solitaryWave (const float waterDepth, const float param_H, const float th
 		const float temp_eta = param_H * 1.0f/pow(cosh(param_K * ((x - x_zero) * cos(theta) + (y - y_zero) * sin(theta))),2);
 		return float3(temp_eta, (param_C * cos(theta) * temp_eta), (param_C * sin(theta) * temp_eta));
 }
-
 
 ADD_SOLITARY_OUTPUT AddSolitaryWave(VS_OUTPUT input)
 {
@@ -1003,17 +976,12 @@ ADD_SOLITARY_OUTPUT AddSolitaryWave(VS_OUTPUT input)
 }
 
 
-
-// Boundary condition shaders
-
-
 float CalcSeaLevel( float2 tex_idx)
 {
     return sea_level; 
-
 }
 
-
+// Boundary condition shaders
 float4 WestBoundarySolid( VS_OUTPUT input ) : SV_TARGET
 {
     // mirror on real input
@@ -1045,12 +1013,12 @@ float SpongeFunction(float L, float x) {
 	return 0.5 + 0.5 * cos(PI * max(L - x, 0) / L);
 }
 
+#define MIN_DEPTH 0.0001
 float4 WestBoundarySponge( VS_OUTPUT input ) : SV_TARGET
 {
-    // mirror on real input
 	const int3 idx = GetTexIdx(input);
 	
-	const float d_here = max(0, southSeaLevel - txBottom.Load(idx).b);
+	const float d_here = max(MIN_DEPTH, westSeaLevel - txBottom.Load(idx).b);
 	float gamma = SpongeFunction(float(westBoundaryWidth) * dx, float(idx.x) * dx)
 				/ SpongeFunction(float(westBoundaryWidth) * dx, float(idx.x) * dx + sqrt(boundary_g * d_here) * boundary_dt);
 	const  float4 new_state = txState.Load(idx);
@@ -1059,23 +1027,20 @@ float4 WestBoundarySponge( VS_OUTPUT input ) : SV_TARGET
 
 float4 EastBoundarySponge( VS_OUTPUT input ) : SV_TARGET
 {
-    // mirror on real input
 	const int3 idx = GetTexIdx(input);
 
-	const float d_here = max(0, southSeaLevel - txBottom.Load(idx).b);
+	const float d_here = max(MIN_DEPTH, eastSeaLevel - txBottom.Load(idx).b);
 	float gamma = SpongeFunction(float(eastBoundaryWidth) * dx, float(boundary_nx - idx.x) * dx)
 				/ SpongeFunction(float(eastBoundaryWidth) * dx, float(boundary_nx - idx.x) * dx + sqrt(boundary_g * d_here) * boundary_dt);
 	const  float4 new_state = txState.Load(idx);
 	return float4 (gamma * (new_state.r - eastSeaLevel) + eastSeaLevel, gamma * new_state.g, gamma * new_state.b, 0);
 }
 
-
 float4 SouthBoundarySponge( VS_OUTPUT input ) : SV_TARGET
 {
-    // mirror on real input
 	const int3 idx = GetTexIdx(input);
 
-	const float d_here = max(0, southSeaLevel - txBottom.Load(idx).b);
+	const float d_here = max(MIN_DEPTH, southSeaLevel - txBottom.Load(idx).b);
 	float gamma = SpongeFunction(float(southBoundaryWidth) * dy, float(idx.y) * dy)
 		/ SpongeFunction(float(southBoundaryWidth) * dy, float(idx.y) * dy + sqrt(boundary_g * d_here) * boundary_dt);
 
@@ -1085,16 +1050,14 @@ float4 SouthBoundarySponge( VS_OUTPUT input ) : SV_TARGET
 
 float4 NorthBoundarySponge( VS_OUTPUT input ) : SV_TARGET
 {
-    // mirror on real input
 	const int3 idx = GetTexIdx(input);
 
-	const float d_here = max(0, southSeaLevel - txBottom.Load(idx).b);
+	const float d_here = max(MIN_DEPTH, northSeaLevel - txBottom.Load(idx).b);
 	float gamma = SpongeFunction(float(northBoundaryWidth) * dy, float(boundary_ny - idx.y) * dy)
 				/ SpongeFunction(float(northBoundaryWidth) * dy, float(boundary_ny - idx.y) * dy + sqrt(boundary_g * d_here) * boundary_dt);
 	const  float4 new_state = txState.Load(idx);
 	return float4 (gamma * (new_state.r - northSeaLevel) + northSeaLevel, gamma * new_state.g, gamma * new_state.b, 0);
 }
-
 
 //  This function is no longer used. I keep it just for reference.
 float calc_wavelength(float T, float d){ // The recursive dispersion relation is troublesome on the GPU, therefore we use an approx formula instead of this function.
@@ -1146,7 +1109,7 @@ float4 EastBoundarySineWave( VS_OUTPUT input ) : SV_TARGET
 	const float x = (idx.x - boundary_nx)* dx; // CHECKME. boundary_nx or nx?
 	const float y = idx.y * dy;
 	float3 result;
-	if (d_here > 0.0001) // if not zero
+	if (d_here > MIN_DEPTH) // if not zero
 	{
 		result = sineWave(x,y,total_time,d_here,eastAmplitude_or_eta, eastPeriod_or_hu, eastTheta_or_hv, 0);
 	} else {
@@ -1165,16 +1128,14 @@ float4 WestBoundarySineWave( VS_OUTPUT input ) : SV_TARGET
 	const float x = idx.x * dx;
 	const float y = idx.y * dy;
 	float3 result;
-	if (d_here > 0.0001) // if not zero
+	if (d_here > MIN_DEPTH) // if not zero
 	{
 		result = sineWave(x,y,total_time,d_here,westAmplitude_or_eta,westPeriod_or_hu,westTheta_or_hv, 0);
 	} else {
 		result = float3(0.0f, 0.0f, 0.0f);
 	}
 	
-	
 	return float4(result.r + westSeaLevel, result.g, result.b, 0);
-	
 }
 
 float4 NorthBoundarySineWave( VS_OUTPUT input ) : SV_TARGET
@@ -1185,7 +1146,7 @@ float4 NorthBoundarySineWave( VS_OUTPUT input ) : SV_TARGET
 	const float x = idx.x * dx;
 	const float y = (idx.y - boundary_ny) * dy; // CHECKME. boundary_ny or ny?
 	float3 result;
-	if (d_here > 0.0001) // if not zero
+	if (d_here > MIN_DEPTH) // if not zero
 	{
 		result = sineWave(x, y, total_time, d_here, northAmplitude_or_eta, northPeriod_or_hu, northTheta_or_hv, 0);
 	} else {
@@ -1202,7 +1163,7 @@ float4 SouthBoundarySineWave( VS_OUTPUT input ) : SV_TARGET
 	const float x = idx.x * dx;
 	const float y = idx.y * dy;
 	float3 result;
-	if (d_here > 0.0001) // if not zero
+	if (d_here > MIN_DEPTH) // if not zero
 	{
 		result = sineWave(x, y, total_time, d_here, southAmplitude_or_eta, southPeriod_or_hu, southTheta_or_hv, 0);
 	} else {
@@ -1216,7 +1177,6 @@ float4 WestBoundaryUniformTimeSeries( VS_OUTPUT input ) : SV_TARGET
 {
 	return float4(westAmplitude_or_eta + westSeaLevel, westPeriod_or_hu, westTheta_or_hv, 0);
 }
-
 
 float4 EastBoundaryUniformTimeSeries( VS_OUTPUT input ) : SV_TARGET
 {
@@ -1264,9 +1224,8 @@ float4 WestBoundaryIrregularWaves( VS_OUTPUT input ) : SV_TARGET
 
 	const int waveNum = GetTexIdx(input).x - 2; //  - 2 to skip gost cells. 
 	
-	
 	float3 result;
-	if (d_here > 0.0001 && waveNum < numberOfWavesWest) // if d not zero
+	if (d_here > MIN_DEPTH && waveNum < numberOfWavesWest) // if d not zero
 	{	
 		float4 waveData = irregularWavesWest[waveNum];
 		result = sineWave(x, y, total_time, d_here, waveData.r, waveData.g, waveData.b, waveData.a);
@@ -1292,7 +1251,7 @@ float4 EastBoundaryIrregularWaves( VS_OUTPUT input ) : SV_TARGET
 	const int waveNum = GetTexIdx(input).x - 2; //  - 2 to skip gost cells. 
 	
 	float3 result;
-	if (d_here > 0.0001 && waveNum < numberOfWavesEast) // if d not zero
+	if (d_here > MIN_DEPTH && waveNum < numberOfWavesEast) // if d not zero
 	{	
 		float4 waveData = irregularWavesEast[waveNum];
 		result = sineWave(x, y, total_time, d_here, waveData.r, waveData.g, waveData.b, waveData.a);
@@ -1315,7 +1274,7 @@ float4 SouthBoundaryIrregularWaves( VS_OUTPUT input ) : SV_TARGET
 	const int waveNum = GetTexIdx(input).y - 2; //  - 2 to skip gost cells. 
 	
 	float3 result;
-	if (d_here > 0.0001 && waveNum < numberOfWavesSouth) // if d not zero
+	if (d_here > MIN_DEPTH && waveNum < numberOfWavesSouth) // if d not zero
 	{	
 		float4 waveData = irregularWavesSouth[waveNum];
 		result = sineWave(x, y, total_time, d_here, waveData.r, waveData.g, waveData.b, waveData.a);
@@ -1339,7 +1298,7 @@ float4 NorthBoundaryIrregularWaves( VS_OUTPUT input ) : SV_TARGET
 	const int waveNum = GetTexIdx(input).y - 2; //  - 2 to skip gost cells. 
 	
 	float3 result;
-	if (d_here > 0.0001 && waveNum < numberOfWavesNorth) // if d not zero
+	if (d_here > MIN_DEPTH && waveNum < numberOfWavesNorth) // if d not zero
 	{	
 		float4 waveData = irregularWavesNorth[waveNum];
 		result = sineWave(x, y, total_time, d_here, waveData.r, waveData.g, waveData.b, waveData.a);
@@ -1348,7 +1307,6 @@ float4 NorthBoundaryIrregularWaves( VS_OUTPUT input ) : SV_TARGET
 	}
 	return float4(result.r + northSeaLevel, result.g, result.b, 0);
 }
-
 
 // GetStats shader
 // This runs on a block of 4*4 pixels and returns aggregate stats

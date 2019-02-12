@@ -204,7 +204,8 @@ void readBathymetry ()
     const float L = GetSetting("valley_length");
 	const float dx = W / (nx-1);
 	const float dy = L / (ny-1);
-	SetSetting("nominal_cfl", initSetting.timestep / (std::min(dx,dy)/max_celerity));
+	SetSetting("target cfl", initSetting.timestep / (std::min(dx,dy)/max_celerity));
+	SetSetting("uniform time step", initSetting.timestep);
 }
 
 

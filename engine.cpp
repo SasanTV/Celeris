@@ -627,8 +627,6 @@ namespace {
 	}
 	void st_DumpToFile(ID3D11DeviceContext *context, ID3D11Texture2D *staging, ID3D11Texture2D *tex, int nx, int ny)
 	{ // Can get nx and ny using GetTextureSize(...)
-
-
 		std::string timeAxisFileName = initSetting.logPath + "/" + initSetting.timeAxisFilename +".txt";
 		std::ofstream timeAxisFile;
 		if (!timeAxisFile.is_open()) {
@@ -650,7 +648,6 @@ namespace {
 						const char *q = reinterpret_cast<const char*>(m.msr.pData) + j * m.msr.RowPitch;
 						const float *p = reinterpret_cast<const float*>(q) + i * 4;
 						myfile << i << "\t" << j << "\t" << p[0] << "\t" << p[1] << "\t" << p[2] << "\t" << p[3] << "\n";
-					
 				}
 			}
 		}
@@ -687,9 +684,7 @@ namespace {
 					myfile << i << "\t" << j << "\t" << p[0] << "\t" << p[1] << "\t" << p[2] << "\t" << p[3] << "\n";
 			}
 		}
-		
 	}
-
 
     void SeaWaveSettings(char c, float &sa, float &skx, float &sky, float &so)
     {
@@ -707,9 +702,6 @@ ShallowWaterEngine::ShallowWaterEngine(ID3D11Device *device_,
                                        ID3D11DeviceContext *context_)
     : device(device_), context(context_), current_timestep(0), old_timestep(0), old_old_timestep(0), total_time(0)
 {
-
-
-
     // create D3D objects
     createShadersAndInputLayout();
     createConstantBuffers();
@@ -848,11 +840,8 @@ void ShallowWaterEngine::moveCamera(float x, float y, float z, float yaw_, float
 
 void ShallowWaterEngine::timestep()
 {
-
-
     ///// Allow only a certain number of timesteps for debugging
 #if 0
-
 	static bool debug_flag = true;
 	
 	if(timestep_count == 0){
@@ -861,8 +850,6 @@ void ShallowWaterEngine::timestep()
 	if (debug_flag) return;
 #endif
     /////////////////////////////////////
-
-  
     /*
 	boost::shared_ptr<Coercri::Timer> timer(new Coercri::GenericTimer);
 	
@@ -977,12 +964,10 @@ void ShallowWaterEngine::timestep()
 
         bootstrap_needed = false;
     }
-	
 
     // Pass 2
     // read: h, u, v
     // write: xflux, yflux
-
 
 	// xflux and yflux are used as scratch texture elsewhere. Here we reset them to (0,0,0,0). Note that D1x[0] and D1y[0] are never used in this code, so they are all (0,0,0,0).
 	context->CopyResource(m_psSimTexture[4].get(),
@@ -999,16 +984,12 @@ void ShallowWaterEngine::timestep()
 	context->PSSetShaderResources(3, 1, &normal_tex);
 	context->PSSetShaderResources(4, 1, &auxiliary2_tex);
 
-	
-
     ID3D11RenderTargetView * p2_tgt[] = {xflux_target, yflux_target, auxiliary1_target, 0};
     context->OMSetRenderTargets(4, &p2_tgt[0], 0);
 
     context->PSSetShader(m_psSimPixelShader[1].get(), 0, 0);
 
-
     context->Draw(6, 0);
-
 
 	// Pass 3
     // read: old_state, bottom, xflux, yflux
@@ -1017,8 +998,6 @@ void ShallowWaterEngine::timestep()
 	// reset new_state_or_h to zero
 	context->CopyResource(m_psSimTexture[1-sim_idx].get(),
 						  st_psTriDigTexture_D1x[0].get()); //st_psTriDigTexture_D1x is all zeros!!!
-
-
 
 	vert_buf = m_psSimVertexBuffer00.get();
     context->IASetVertexBuffers(0, 1, &vert_buf, &stride, &offset);
@@ -1029,7 +1008,6 @@ void ShallowWaterEngine::timestep()
     context->OMSetRenderTargets(3, &p3_tgt[0], 0);
 	context->PSSetShader(m_psSimPixelShader[2].get(), 0, 0);
 
-
 	//TODO: remove these, taking care if they are used anywhere else.
 	if(firstTimeStep){
 		firstTimeStep = false;
@@ -1038,8 +1016,6 @@ void ShallowWaterEngine::timestep()
 	else if (secondTimeStep){
 		secondTimeStep = false;
 	}
-
-	
 
 	ID3D11ShaderResourceView * ABCx_tex = st_psTriDigTextureView_ABCx[0].get();
 	ID3D11ShaderResourceView * ABCy_tex = st_psTriDigTextureView_ABCy[0].get();
@@ -1062,7 +1038,6 @@ void ShallowWaterEngine::timestep()
 	}
 
     context->Draw(6, 0);
-	
 	
 	if (timeScheme == predictor || timeScheme == predictor_adaptive){
 		context->CopyResource(m_psSimTexture[predicted_index].get(),
@@ -1091,8 +1066,7 @@ void ShallowWaterEngine::timestep()
 
 	// Run cyclic reduce on rest of D1x (i) and get D1x(i+1)
 
-	for(int i=2;i<countOfMatricesXdirection;++i){
-		
+	for(int i=2;i<countOfMatricesXdirection;++i){	
 		//getting some pointers to resources and targets!
 		ID3D11ShaderResourceView * ABCx_tex = st_psTriDigTextureView_ABCx[i-1].get();
 		ID3D11ShaderResourceView * D1x_tex = st_psTriDigTextureView_D1x[i-1].get();
@@ -1145,7 +1119,6 @@ void ShallowWaterEngine::timestep()
 		
 		context->Draw(6, 0);
     }
-    
 		
 	//Backward Substitution
 	//solving for x, the first step. x direction
@@ -1272,7 +1245,6 @@ void ShallowWaterEngine::timestep()
 	cb.westSeaLevel  = initSetting.westBoundary.waterLevel;
 	cb.southSeaLevel = initSetting.southBoundary.waterLevel;
 	
-
 	if (initSetting.eastBoundary.type == "UniformTimeSeries"){
 		float temp_eta = 0, temp_hu = 0, temp_hv = 0;
 		eastUniformTimeSeries(temp_eta, temp_hu, temp_hv, total_time);
@@ -1311,7 +1283,6 @@ void ShallowWaterEngine::timestep()
 		cb.northPeriod_or_hu = initSetting.northBoundary.sineWaveSetting.period;
 		cb.northTheta_or_hv = initSetting.northBoundary.sineWaveSetting.theta;
 	}
-
 	
 	if (initSetting.southBoundary.type == "UniformTimeSeries"){
 		float temp_eta = 0, temp_hu = 0, temp_hv = 0;
@@ -1362,8 +1333,6 @@ void ShallowWaterEngine::timestep()
 	for (int i = 0; i < 3; ++i){
 		context->PSSetShaderResources(1+i, 1, &pNULL);
 	}
-	
-
 	
 	//east
     // use XFLUX as scratch space, then we'll copy back to the main output 
@@ -1431,7 +1400,6 @@ void ShallowWaterEngine::timestep()
 		context->CopySubresourceRegion(m_psSimTexture[1-sim_idx].get(), 0, 0, 0, 0, m_psSimTexture[4].get(), 0, &src_box);
  	}
 
-	
 	//south 
 	// use XFLUX as scratch space, then we'll copy back to the main output 
 	context->OMSetRenderTargets(1, &xflux_target, 0);
@@ -1479,8 +1447,6 @@ void ShallowWaterEngine::timestep()
     context->PSSetShaderResources(1, 1, &bottom_tex);
 	context->PSSetShaderResources(3, 1, &auxiliary1_tex);
     context->Draw(6, 0);
-
-
 #if 1
 	/*
 	static bool bathymetry = true;
@@ -1498,7 +1464,6 @@ void ShallowWaterEngine::timestep()
 		//myfile.close();
 	}*/
 #endif
-
 
 	if (timestep_count >= 2) {
 		if (correction_steps_count == initSetting.correctionStepsNum)
@@ -1667,7 +1632,6 @@ void ShallowWaterEngine::resetTimestep(float realworld_dt, float elapsed_time)
                                    0,
                                    &src_box);
 
-
     float mass = 0;
     float x_mtm = 0, y_mtm = 0;
     float ke = 0, pe = 0;
@@ -1723,15 +1687,21 @@ void ShallowWaterEngine::resetTimestep(float realworld_dt, float elapsed_time)
     max_speed = std::sqrt(max_speed);
     max_froude /= g;
     max_froude = std::sqrt(max_froude);
-        
+	static bool target_cfl_set = false;
+
+	if (cfl > 0 && !target_cfl_set && initSetting.time_scheme == predictor_adaptive) {
+		SetSetting("target cfl", initSetting.timestep * cfl);
+		target_cfl_set = true;
+	}
     // The CFL number is cfl * dt, and this must be less than safety_factor, so dt < safety_factor/cfl
-    const float safety_factor = GetSetting("nominal_cfl");
+    const float safety_factor = GetSetting("target cfl");
 
 	float max_celerity = sqrt((initSetting.stillWaterElevation - initSetting.min_bathy)*GetSetting("gravity"));
     const float W = GetSetting("valley_width");
     const float L = GetSetting("valley_length");
 	const float dx = W / (nx-1);
 	const float dy = L / (ny-1);
+
 
 	if (!initSetting.initialized_timesteps) {
 		current_timestep = initSetting.timestep;
@@ -1742,10 +1712,11 @@ void ShallowWaterEngine::resetTimestep(float realworld_dt, float elapsed_time)
 	}
 
 	if (timeScheme == predictor_adaptive) {
-		current_timestep = std::max(safety_factor / cfl, initSetting.timestep * initSetting.min_timestep_ratio); //std::min(dt * GetSetting("time_acceleration"), safety_factor / cfl);
+		const float target_timestep = std::max(safety_factor / cfl, initSetting.timestep * initSetting.min_timestep_ratio); //std::min(dt * GetSetting("time_acceleration"), safety_factor / cfl);
+		current_timestep = 0.05 * target_timestep + 0.1*old_timestep + 0.85*old_old_timestep;
 	}
 	else {
-		current_timestep = safety_factor * (std::min(dx,dy)/max_celerity); 
+		current_timestep = GetSetting("uniform time step");
 	}
 	
     // update the displays. 
@@ -1786,6 +1757,15 @@ void ShallowWaterEngine::setMinMaxSetting() {
 	SetSettingMin("Colormap Max", surfaceColormapMin);
 	SetSettingMin("Colormap Min", surfaceColormapMin);
 
+	SetSettingMax("uniform time step", initSetting.time_scheme != predictor_adaptive ? initSetting.timestep * 10 : 0);
+	SetSettingMin("uniform time step", initSetting.time_scheme != predictor_adaptive ? initSetting.timestep * .1f : 0);
+	// SetSetting("uniform time step", initSetting.time_scheme != predictor_adaptive ? initSetting.timestep : 0);
+
+	if (initSetting.time_scheme != predictor_adaptive) {
+		SetSettingMax("target cfl", 0);
+		SetSettingMin("target cfl", 0);
+		SetSetting("target cfl", 0);
+	}
 	SetSetting("Colormap Max", surfaceColormapMax / 2.0f);
 	SetSetting("Colormap Min", surfaceColormapMin / 2.0f);
 
@@ -1922,7 +1902,6 @@ void ShallowWaterEngine::westUniformTimeSeries(float & temp_eta,float & temp_hu,
 	timeSeriesHelper(temp_eta, temp_hu, temp_hv, total_time, data_v, iter);
 }
 
-
 void ShallowWaterEngine::eastUniformTimeSeries(float & temp_eta,float & temp_hu,float & temp_hv,float total_time){
 
 	std::vector<std::vector<float>> & data_v = initSetting.eastBoundary.uniformTimeSeries.data;
@@ -1930,7 +1909,6 @@ void ShallowWaterEngine::eastUniformTimeSeries(float & temp_eta,float & temp_hu,
 
 	timeSeriesHelper(temp_eta, temp_hu, temp_hv, total_time, data_v, iter);
 }
-
 
 void ShallowWaterEngine::southUniformTimeSeries(float & temp_eta,float & temp_hu,float & temp_hv,float total_time){
 
@@ -1940,7 +1918,6 @@ void ShallowWaterEngine::southUniformTimeSeries(float & temp_eta,float & temp_hu
 	timeSeriesHelper(temp_eta, temp_hu, temp_hv, total_time, data_v, iter);
 }
 
-
 void ShallowWaterEngine::northUniformTimeSeries(float & temp_eta,float & temp_hu,float & temp_hv,float total_time){
 
 	std::vector<std::vector<float>> & data_v = initSetting.northBoundary.uniformTimeSeries.data;
@@ -1948,7 +1925,6 @@ void ShallowWaterEngine::northUniformTimeSeries(float & temp_eta,float & temp_hu
 
 	timeSeriesHelper(temp_eta, temp_hu, temp_hv, total_time, data_v, iter);
 }
-
 
  // BoundaryConstBuffer must be bound to b0 before using this function.
 void ShallowWaterEngine::eastIrregularBoundary(){
@@ -2019,8 +1995,6 @@ void ShallowWaterEngine::eastIrregularBoundary(){
 	
 		context->CopySubresourceRegion(m_psSimTexture[1 - sim_idx].get(), 0, col, 0, 0, st_psTriDigTexture_D1x[countOfMatricesXdirection - 1].get(), 0, &src_box); 
 	}
-
-	
 } 
 
 // BoundaryConstBuffer must be bound to b0 before using this function.
@@ -2250,7 +2224,6 @@ void ShallowWaterEngine::render(ID3D11RenderTargetView *render_target_view)
 	ID3D11ShaderResourceView * colormap_tex = m_psColormapTextureView.get();
     ID3D11SamplerState * linear_sampler = m_psLinearSamplerState.get();
     
-    
     // input assembler
     context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
     context->IASetInputLayout(m_psInputLayout.get());
@@ -2290,7 +2263,6 @@ void ShallowWaterEngine::render(ID3D11RenderTargetView *render_target_view)
 	context->PSSetShaderResources(2, 1, &colormap_tex);
 	context->PSSetShaderResources(3, 1, &grid_tex);
 	
-
     context->PSSetConstantBuffers(0, 1, &cst_buf);
     context->PSSetSamplers(0, 1, &linear_sampler);
     
@@ -2320,7 +2292,6 @@ void ShallowWaterEngine::render(ID3D11RenderTargetView *render_target_view)
     // draw the mesh
     context->DrawIndexed(6 * (mesh_width - 1) * (mesh_height - 1), 0, 0);
 
-
     // Now draw the skybox
     context->IASetInputLayout(m_psSkyboxInputLayout.get());
     vert_buf = m_psSkyboxVertexBuffer.get();
@@ -2335,8 +2306,6 @@ void ShallowWaterEngine::render(ID3D11RenderTargetView *render_target_view)
 void ShallowWaterEngine::createShadersAndInputLayout()
 {
     Coercri::ComPtrWrapper<ID3DBlob> bytecode;
-	
-    
 	std::string shallow_water_fx = initSetting.exePath + "/shaders/graphics.fx";
 	CreateVertexShader(device, shallow_water_fx.c_str(), "TerrainVertexShader", bytecode, m_psTerrainVertexShader);
     CreatePixelShader(device, shallow_water_fx.c_str(), "TerrainPixelShader", m_psTerrainPixelShader);
@@ -2789,6 +2758,8 @@ void ShallowWaterEngine::createTridiagonalCoefTextures()
 		arrayLength/=2;
 	}
 
+	//st_DumpToFileForDebug(context, m_psFullSizeStagingTexture.get(), st_psTriDigTexture_ABCx[0].get(), nx, ny);
+
 	boost::scoped_array<float> matCoeffs_y[ST_MAX_CR_MATRIX_NUM_Y];
 	const int countOfMatricesYdirection = st_getCountOfMatrices(ny);
 	arrayLength=ny;
@@ -2797,7 +2768,7 @@ void ShallowWaterEngine::createTridiagonalCoefTextures()
 		matCoeffs_y[i].reset(new float[(arrayLength+4) * (nx_plus_4) * 4]); //ST_: ny can be used instead of ny_plus_4
 		arrayLength/=2;
 	}
-	
+
 	//ST_: Making the first (num 0) MatCoeff of ABCy.
 	counter=0;
 	for (int i = 0; i < ny_plus_4; ++i) {
@@ -3397,8 +3368,6 @@ void ShallowWaterEngine::fillTerrainTexture()
     bootstrap_needed = true;
 }
 
-
-
 // Updates the terrain texture, but does not touch the water texture
 void ShallowWaterEngine::fillTerrainTextureLite()
 {
@@ -3691,8 +3660,6 @@ std::string ShallowWaterEngine::generateSpectrumWaves(IrregularWaveSpectrumSetti
 		}
 		E_D_matrix.push_back(Temp_array);
 	}
-	  
-
 
 	float Hmo = 0;
 

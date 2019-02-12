@@ -107,7 +107,7 @@ namespace {
         SetSettingD("gravity", 9.81);
 		SetSettingD("friction", initSetting.friction);
 		SetSettingD("Theta", initSetting.theta);
-		SetSettingD("nominal_cfl", 0.2);
+		SetSettingD("target cfl", 0.2);
         SetSettingD("timesteps_per_frame", 10);
         //SetSettingD("time_acceleration", 1);
 			
@@ -969,7 +969,7 @@ void GuiManager::resetColormapSliders()
 {
     for (int i = 0; i < int(sliders.size()); ++i) {
         Setting &s = g_settings[i];
-		if (s.type == S_SLIDER && (s.name == "Colormap Max" || s.name == "Colormap Min" || s.name == "Colormap Min " || s.name == "Colormap Max " || s.name == "Flow Depth" || s.name == "Tide/Surge/SLR")) {
+		if (s.type == S_SLIDER && (s.name == "Colormap Max" || s.name == "Colormap Min" || s.name == "Colormap Min " || s.name == "Colormap Max " || s.name == "Flow Depth" || s.name == "Tide/Surge/SLR" || s.name == "uniform time step" || s.name == "target cfl")) {
 			sliders[i]->setScale(RealToSlider(s, s.min),RealToSlider(s, s.max));	
 			sliders[i]->setStepLength((s.max-s.min)/20.0f);
 			sliders[i]->setValue(RealToSlider(s, s.value));

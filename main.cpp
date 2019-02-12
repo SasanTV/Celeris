@@ -322,7 +322,7 @@ int real_main()
     std::auto_ptr<MyListener> listener;
     boost::shared_ptr<Coercri::DX11Window> window = 
         boost::static_pointer_cast<Coercri::DX11Window>(
-            gfx_driver->createWindow(g_width + GUI_WIDTH, g_height, true, false, initSetting.project_name + " - Celeris Advent (v1.3.3)"));
+            gfx_driver->createWindow(g_width + GUI_WIDTH, g_height, true, false, initSetting.project_name + " - Celeris Advent (v1.3.4)"));
     GuiManager gui_manager(window, timer, GUI_WIDTH);
 	
     // Create the ShallowWaterEngine
@@ -385,7 +385,7 @@ int real_main()
             const unsigned int frame_time = 1;  // in msec. acts as fps limiter.
 
             // see if dt needs to be reset
-            const int steps_between_reset = 10;
+            const int steps_between_reset = 1;
             if (timestep_count >= steps_between_reset) {
 				
                 unsigned int timer_now = timer->getMsec();
