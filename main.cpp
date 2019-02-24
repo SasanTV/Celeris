@@ -395,9 +395,7 @@ int real_main()
                 timer_at_zero_timesteps = timer->getMsec();
                 engine->resetTimestep(dt,elapsed_time);
 				UpdateMousePick(listener->getMX(), listener->getMY(), *engine);
-     
             }
-	
             
             gfx_driver->pollEvents();
             gui_manager.logic();
@@ -421,7 +419,7 @@ int real_main()
                 listener->update(float(time_since_last) / 1000.0f);
 				if (!gui_manager.isPause()){
 					// do timestep
-					const int timesteps_per_frame = GetIntSetting("timesteps_per_frame");
+					const int timesteps_per_frame = 1; // GetIntSetting("timesteps_per_frame");
 					for (int i = 0; i < timesteps_per_frame; ++i) {
 						engine->timestep();
 						++timestep_count;

@@ -625,14 +625,14 @@ namespace {
 		ID3D11Buffer *t_cst_buf = cbuffer;
 	    context->PSSetConstantBuffers(1, 1, &t_cst_buf);
 	}
-	void st_DumpToFile(ID3D11DeviceContext *context, ID3D11Texture2D *staging, ID3D11Texture2D *tex, int nx, int ny)
+	void st_DumpToFile(ID3D11DeviceContext *context, ID3D11Texture2D *staging, ID3D11Texture2D *tex, int nx, int ny, float total_time)
 	{ // Can get nx and ny using GetTextureSize(...)
 		std::string timeAxisFileName = initSetting.logPath + "/" + initSetting.timeAxisFilename +".txt";
 		std::ofstream timeAxisFile;
 		if (!timeAxisFile.is_open()) {
 			timeAxisFile.open(timeAxisFileName.c_str(), std::ios::out | std::ios::app);
 		}
-		timeAxisFile << GetSetting("virtual time") << "\n";
+		timeAxisFile << total_time << "\n";
 
 		context->CopyResource(staging, tex);
 		MapTexture m(*context, *staging);
@@ -1481,7 +1481,7 @@ void ShallowWaterEngine::timestep()
 	{
 		//// Dumping to file ////
 		if (initSetting.doLog == true && timestep_count % initSetting.logStep == 0){
-			st_DumpToFile(context, m_psFullSizeStagingTexture.get(), m_psSimTexture[1-sim_idx].get(),nx,ny);
+			st_DumpToFile(context, m_psFullSizeStagingTexture.get(), m_psSimTexture[1-sim_idx].get(),nx,ny, total_time);
 			//myfile.close();
 		}
 		timestep_count++;
@@ -1713,7 +1713,8 @@ void ShallowWaterEngine::resetTimestep(float realworld_dt, float elapsed_time)
 
 	if (timeScheme == predictor_adaptive) {
 		const float target_timestep = std::max(safety_factor / cfl, initSetting.timestep * initSetting.min_timestep_ratio); //std::min(dt * GetSetting("time_acceleration"), safety_factor / cfl);
-		current_timestep = 0.05 * target_timestep + 0.1*old_timestep + 0.85*old_old_timestep;
+		// current_timestep = 0.05 * target_timestep + 0.1*old_timestep + 0.85*old_old_timestep;
+		current_timestep = target_timestep;
 	}
 	else {
 		current_timestep = GetSetting("uniform time step");
@@ -4162,7 +4163,6 @@ void ShallowWaterEngine::createDepthStencil(int w, int h)
 
 void ShallowWaterEngine::loadGraphics()
 {
-
     loadTerrainShading(0); // 0 is default shading or sand
 	loadTerrainGrid(0); // 0 is default shading.
 	D3D11_SAMPLER_DESC sd;
