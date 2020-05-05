@@ -333,6 +333,7 @@ struct InitSetting {
 	// min_timestep_ratio*timestep is the minimum timestep targeted 
 	// in the adaptive timestepping scheme.
 	float min_timestep_ratio;
+	float exponential_moving_average_alpha;
 	bool initialized_timesteps;
 	TimeIntegrationScheme time_scheme;
 
@@ -396,6 +397,7 @@ struct InitSetting {
 		correctionStepsNum = 0;
 		timestep = 0.0001;
 		min_timestep_ratio = 0.05;
+		exponential_moving_average_alpha = 0.5;
 		initialized_timesteps = false;
 		time_scheme = predictor;
 

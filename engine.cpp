@@ -634,6 +634,14 @@ namespace {
 		}
 		timeAxisFile << total_time << "\n";
 
+		std::string elapsedTimeAxisFileName = initSetting.logPath + "/" + initSetting.timeAxisFilename + "-elapsed.txt";
+		std::ofstream elapsedTimeAxisFile;
+		if (!elapsedTimeAxisFile.is_open()) {
+			elapsedTimeAxisFile.open(elapsedTimeAxisFileName.c_str(), std::ios::out | std::ios::app);
+		}
+		elapsedTimeAxisFile << GetSetting("elapsed time") << "\n";
+
+
 		context->CopyResource(staging, tex);
 		MapTexture m(*context, *staging);
 
@@ -1713,8 +1721,8 @@ void ShallowWaterEngine::resetTimestep(float realworld_dt, float elapsed_time)
 
 	if (timeScheme == predictor_adaptive) {
 		const float target_timestep = std::max(safety_factor / cfl, initSetting.timestep * initSetting.min_timestep_ratio); //std::min(dt * GetSetting("time_acceleration"), safety_factor / cfl);
-		// current_timestep = 0.05 * target_timestep + 0.1*old_timestep + 0.85*old_old_timestep;
-		current_timestep = target_timestep;
+		current_timestep = target_timestep > old_timestep ? initSetting.exponential_moving_average_alpha * target_timestep + (1 - initSetting.exponential_moving_average_alpha) *old_timestep : target_timestep;
+		// current_timestep = target_timestep;
 	}
 	else {
 		current_timestep = GetSetting("uniform time step");

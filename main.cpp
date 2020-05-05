@@ -322,7 +322,7 @@ int real_main()
     std::auto_ptr<MyListener> listener;
     boost::shared_ptr<Coercri::DX11Window> window = 
         boost::static_pointer_cast<Coercri::DX11Window>(
-            gfx_driver->createWindow(g_width + GUI_WIDTH, g_height, true, false, initSetting.project_name + " - Celeris Advent (v1.3.4.1)"));
+            gfx_driver->createWindow(g_width + GUI_WIDTH, g_height, true, false, initSetting.project_name + " - Celeris Advent (v1.3.5)"));
     GuiManager gui_manager(window, timer, GUI_WIDTH);
 	
     // Create the ShallowWaterEngine
@@ -419,7 +419,8 @@ int real_main()
                 listener->update(float(time_since_last) / 1000.0f);
 				if (!gui_manager.isPause()){
 					// do timestep
-					const int timesteps_per_frame = 1; // GetIntSetting("timesteps_per_frame");
+					// TODO: timesteps_per_frame needs to be loaded from cml.
+					const int timesteps_per_frame = 1; //GetIntSetting("timesteps_per_frame");
 					for (int i = 0; i < timesteps_per_frame; ++i) {
 						engine->timestep();
 						++timestep_count;
@@ -569,6 +570,10 @@ bool readInputCML()
 				bool tempBool = false;
 				elem->FirstChildElement("parameters")->QueryBoolAttribute("adaptive", &tempBool);
 				initSetting.time_scheme = tempBool? predictor_adaptive : predictor;
+
+				if (elem->FirstChildElement("parameters")->QueryFloatAttribute("exponentialMovingAverageAlpha", &tempFloat) == TIXML_SUCCESS) {
+					initSetting.exponential_moving_average_alpha = tempFloat;
+				}
 
 				std::string frictionType;
 				elem->FirstChildElement("friction")->QueryStringAttribute("type", &frictionType);
